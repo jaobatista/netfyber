@@ -32,9 +32,7 @@ oauth-credentials.json
 *.der
 
 # Render e deploy
-render.yaml
 render.yml
-render.yaml.example
 render.yml.example
 docker-compose*.yml
 docker-compose.override.yml
