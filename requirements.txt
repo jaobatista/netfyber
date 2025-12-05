@@ -1,11 +1,8 @@
-# requirements.txt corrigido para Python 3.13
 Flask==2.3.3
-Flask-SQLAlchemy==3.1.1
+Flask-SQLAlchemy==3.0.5
 Flask-Login==0.6.3
 Werkzeug==2.3.7
-psycopg[binary]==3.3.1
+psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 gunicorn==21.2.0
-SQLAlchemy==2.1.0b1
-greenlet==3.3.0
-typing-extensions==4.11.0
+SQLAlchemy==2.0.23
