@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 - Erro no servidor</title>
+    <title>500 - Erro Interno</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #dc3545 0%, #ff6b6b 100%);
@@ -14,26 +15,12 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            margin: 0;
             padding: 20px;
         }
-        .container {
-            max-width: 600px;
-        }
-        h1 {
-            font-size: 6rem;
-            margin: 0;
-            color: white;
-        }
-        h2 {
-            font-size: 2rem;
-            margin: 0 0 20px 0;
-        }
-        p {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            opacity: 0.9;
-        }
+        .container { max-width: 600px; }
+        h1 { font-size: 6rem; margin: 0; color: white; }
+        h2 { font-size: 2rem; margin: 0 0 20px 0; }
+        p { font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9; }
         .btn {
             display: inline-block;
             background: white;
@@ -53,9 +40,9 @@
 <body>
     <div class="container">
         <h1>500</h1>
-        <h2>Erro no servidor</h2>
-        <p>Ocorreu um erro interno. Por favor, tente novamente mais tarde.</p>
-        <a href="/" class="btn">Voltar para página inicial</a>
+        <h2>Erro Interno do Servidor</h2>
+        <p>Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.</p>
+        <a href="/" class="btn">Página Inicial</a>
     </div>
 </body>
 </html>
