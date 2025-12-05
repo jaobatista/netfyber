@@ -154,38 +154,51 @@ def load_user(user_id):
     return AdminUser.query.get(int(user_id))
 
 # ========================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES CORRIGIDAS
 # ========================================
 def get_configs():
-    """Busca configurações do banco de dados"""
+    """Busca configurações do banco de dados com tratamento robusto de erro"""
+    # Configurações padrão (definidas ANTES do try)
+    default_configs = {
+        'telefone_contato': '(63) 8494-1778',
+        'email_contato': 'contato@netfyber.com',
+        'endereco': 'AV. Tocantins – 934, Centro – Sítio Novo – TO<br>Axixá TO / Juverlândia / São Pedro / Folha Seca / Morada Nova / Santa Luzia / Boa Esperança',
+        'horario_segunda_sexta': '08h às 18h',
+        'horario_sabado': '08h às 13h',
+        'whatsapp_numero': '556384941778',
+        'instagram_url': 'https://www.instagram.com/netfybertelecom',
+        'hero_imagem': 'images/familia.png',
+        'hero_titulo': 'Internet de Alta Velocidade',
+        'hero_subtitulo': 'Conecte sua família ao futuro com a NetFyber Telecom'
+    }
+    
     try:
+        # Testar conexão com o banco
+        db.session.execute(text('SELECT 1'))
+        
         configs = {}
         for config in Configuracao.query.all():
             configs[config.chave] = config.valor
         
-        # Valores padrão
-        defaults = {
-            'telefone_contato': '(63) 8494-1778',
-            'email_contato': 'contato@netfyber.com',
-            'endereco': 'AV. Tocantins – 934, Centro – Sítio Novo – TO',
-            'horario_segunda_sexta': '08h às 18h',
-            'horario_sabado': '08h às 13h',
-            'whatsapp_numero': '556384941778',
-            'instagram_url': 'https://www.instagram.com/netfybertelecom',
-            'hero_imagem': 'images/familia.png',
-            'hero_titulo': 'Internet de Alta Velocidade',
-            'hero_subtitulo': 'Conecte sua família ao futuro com a NetFyber Telecom'
-        }
+        print(f"✅ Configurações carregadas: {len(configs)} itens")
         
-        # Mesclar configurações
-        for key, value in defaults.items():
+        # Mesclar com configurações padrão se faltarem
+        for key, value in default_configs.items():
             if key not in configs:
                 configs[key] = value
         
         return configs
+        
     except Exception as e:
         print(f"⚠️ Erro ao buscar configurações: {e}")
-        return defaults
+        # Fazer rollback para limpar transação abortada
+        try:
+            db.session.rollback()
+        except:
+            pass
+        
+        # Retornar configurações padrão (agora está definida)
+        return default_configs
 
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -208,6 +221,30 @@ def save_uploaded_file(file):
     except Exception as e:
         print(f"❌ Erro ao salvar arquivo: {e}")
         return None
+
+# ========================================
+# HANDLERS DE SESSÃO (NOVO)
+# ========================================
+@app.before_request
+def before_request():
+    """Garante que a sessão do banco está limpa antes de cada requisição"""
+    try:
+        # Fechar qualquer sessão antiga
+        db.session.close()
+    except:
+        pass
+
+@app.teardown_request
+def teardown_request(exception=None):
+    """Limpa a sessão após cada requisição"""
+    if exception:
+        db.session.rollback()
+    else:
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+    db.session.close()
 
 # ========================================
 # CONTEXT PROCESSOR
@@ -480,64 +517,160 @@ def forbidden_error(error):
     return render_template('public/403.html'), 403
 
 # ========================================
-# INICIALIZAÇÃO
+# INICIALIZAÇÃO ROBUSTA DO BANCO
 # ========================================
 def init_database():
+    """Inicializa o banco de dados com tratamento completo de erros"""
     with app.app_context():
-        try:
-            db.create_all()
-            
-            # Criar admin se não existir
-            admin = AdminUser.query.filter_by(username=ADMIN_USERNAME).first()
-            if not admin:
-                admin = AdminUser(
-                    username=ADMIN_USERNAME,
-                    email=ADMIN_EMAIL,
-                    is_active=True
-                )
-                admin.set_password(ADMIN_PASSWORD)
-                db.session.add(admin)
-                print(f"✅ Admin criado: {ADMIN_USERNAME}")
-            
-            # Configurações padrão
-            defaults = [
-                ('telefone_contato', '(63) 8494-1778', 'Telefone de contato'),
-                ('email_contato', 'contato@netfyber.com', 'Email de contato'),
-                ('endereco', 'AV. Tocantins – 934, Centro – Sítio Novo – TO', 'Endereço completo'),
-                ('horario_segunda_sexta', '08h às 18h', 'Horário de segunda a sexta'),
-                ('horario_sabado', '08h às 13h', 'Horário de sábado'),
-                ('whatsapp_numero', '556384941778', 'Número do WhatsApp'),
-                ('instagram_url', 'https://www.instagram.com/netfybertelecom', 'URL do Instagram'),
-                ('hero_imagem', 'images/familia.png', 'Imagem do hero'),
-                ('hero_titulo', 'Internet de Alta Velocidade', 'Título do hero'),
-                ('hero_subtitulo', 'Conecte sua família ao futuro com a NetFyber Telecom', 'Subtítulo do hero')
-            ]
-            
-            for chave, valor, descricao in defaults:
-                config = Configuracao.query.filter_by(chave=chave).first()
-                if not config:
-                    config = Configuracao(chave=chave, valor=valor, descricao=descricao)
-                    db.session.add(config)
-            
-            db.session.commit()
-            print("🎉 Banco de dados inicializado!")
-            
-        except Exception as e:
-            print(f"❌ Erro na inicialização: {e}")
-            db.session.rollback()
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                print(f"🔧 Tentativa {retry_count + 1}/{max_retries}: Inicializando banco de dados...")
+                
+                # Verificar se já existe conexão ativa
+                try:
+                    db.session.execute(text('SELECT 1'))
+                except:
+                    print("🔄 Reconectando ao banco...")
+                
+                # Criar tabelas se não existirem (com IF NOT EXISTS implícito)
+                db.create_all()
+                print("✅ Tabelas verificadas/criadas")
+                
+                # Criar usuário admin se não existir
+                admin_username = os.environ.get('ADMIN_USERNAME', 'netfyber_admin')
+                admin_password = os.environ.get('ADMIN_PASSWORD', 'Admin@Netfyber2025!')
+                admin_email = os.environ.get('ADMIN_EMAIL', 'admin@netfyber.com')
+                
+                admin = AdminUser.query.filter_by(username=admin_username).first()
+                if not admin:
+                    print(f"👤 Criando usuário admin: {admin_username}")
+                    admin = AdminUser(
+                        username=admin_username,
+                        email=admin_email,
+                        is_active=True
+                    )
+                    admin.set_password(admin_password)
+                    db.session.add(admin)
+                    print(f"✅ Admin criado: {admin_username}")
+                
+                # Configurações padrão
+                configs_padrao = [
+                    ('telefone_contato', '(63) 8494-1778', 'Telefone de contato'),
+                    ('email_contato', 'contato@netfyber.com', 'Email de contato'),
+                    ('endereco', 'AV. Tocantins – 934, Centro – Sítio Novo – TO<br>Axixá TO / Juverlândia / São Pedro / Folha Seca / Morada Nova / Santa Luzia / Boa Esperança', 'Endereço completo'),
+                    ('horario_segunda_sexta', '08h às 18h', 'Horário de segunda a sexta'),
+                    ('horario_sabado', '08h às 13h', 'Horário de sábado'),
+                    ('whatsapp_numero', '556384941778', 'Número do WhatsApp para contato'),
+                    ('instagram_url', 'https://www.instagram.com/netfybertelecom', 'URL do Instagram'),
+                    ('hero_imagem', 'images/familia.png', 'Imagem da seção hero'),
+                    ('hero_titulo', 'Internet de Alta Velocidade', 'Título principal do hero'),
+                    ('hero_subtitulo', 'Conecte sua família ao futuro com a NetFyber Telecom', 'Subtítulo do hero')
+                ]
+                
+                for chave, valor, descricao in configs_padrao:
+                    config = Configuracao.query.filter_by(chave=chave).first()
+                    if not config:
+                        config = Configuracao(
+                            chave=chave,
+                            valor=valor,
+                            descricao=descricao,
+                            created_at=datetime.utcnow()
+                        )
+                        db.session.add(config)
+                        print(f"⚙️  Configuração padrão adicionada: {chave}")
+                
+                # Planos de exemplo (apenas se não houver nenhum plano)
+                if Plano.query.count() == 0:
+                    print("📡 Criando planos de exemplo...")
+                    
+                    planos_exemplo = [
+                        {
+                            'nome': '100 MEGA',
+                            'preco': '69,90',
+                            'velocidade': '100 Mbps',
+                            'features': 'Wi-Fi Grátis\nInstalação Grátis\nSuporte 24h\nFibra Óptica',
+                            'recomendado': False,
+                            'ordem_exibicao': 1,
+                            'ativo': True
+                        },
+                        {
+                            'nome': '200 MEGA',
+                            'preco': '79,90',
+                            'velocidade': '200 Mbps',
+                            'features': 'Wi-Fi Grátis\nInstalação Grátis\nSuporte 24h\nFibra Óptica\nModem Incluso',
+                            'recomendado': True,
+                            'ordem_exibicao': 2,
+                            'ativo': True
+                        },
+                        {
+                            'nome': '400 MEGA',
+                            'preco': '89,90',
+                            'velocidade': '400 Mbps',
+                            'features': 'Wi-Fi Grátis\nInstalação Grátis\nSuporte 24h\nFibra Óptica\nModem Incluso\nAntivírus',
+                            'recomendado': False,
+                            'ordem_exibicao': 3,
+                            'ativo': True
+                        }
+                    ]
+                    
+                    for plano_data in planos_exemplo:
+                        plano = Plano(
+                            nome=plano_data['nome'],
+                            preco=plano_data['preco'],
+                            velocidade=plano_data['velocidade'],
+                            features=plano_data['features'],
+                            recomendado=plano_data['recomendado'],
+                            ordem_exibicao=plano_data['ordem_exibicao'],
+                            ativo=plano_data['ativo'],
+                            created_at=datetime.utcnow()
+                        )
+                        db.session.add(plano)
+                
+                # Commit final
+                db.session.commit()
+                print("🎉 Banco inicializado com sucesso!")
+                return True
+                
+            except Exception as e:
+                retry_count += 1
+                print(f"❌ Erro na tentativa {retry_count}: {e}")
+                db.session.rollback()
+                
+                if retry_count < max_retries:
+                    print(f"⏳ Aguardando 2 segundos antes de tentar novamente...")
+                    import time
+                    time.sleep(2)
+                else:
+                    print("💥 Todas as tentativas falharam. Verifique a conexão com o banco.")
+                    return False
 
 # ========================================
 # MAIN
 # ========================================
 if __name__ == '__main__':
-    init_database()
+    # Inicializar banco de dados (com retry automático)
+    print("🚀 Iniciando NetFyber Telecom...")
+    
+    try:
+        init_database()
+    except Exception as e:
+        print(f"⚠️  Aviso na inicialização: {e}")
+        print("📝 Continuando com configurações padrão...")
     
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     
-    print(f"🚀 NetFyber Telecom iniciando...")
     print(f"🌐 Porta: {port}")
-    print(f"🔗 Admin: {ADMIN_URL_PREFIX}/login")
-    print(f"👤 Usuário: {ADMIN_USERNAME}")
+    print(f"🔗 Painel Admin: {ADMIN_URL_PREFIX}/login")
+    print(f"👤 Usuário admin: {ADMIN_USERNAME}")
+    print(f"🔧 Modo debug: {debug}")
     
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=debug,
+        threaded=True
+    )
