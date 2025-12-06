@@ -89,10 +89,34 @@ class Plano(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def get_features_list(self):
+        """Converte a string de features em uma lista, lidando com diferentes formatos"""
         if not self.features:
             return []
-        return [f.strip() for f in self.features.split('\n') if f.strip()]
-
+        
+        # Tenta dividir por quebras de linha
+        if '\n' in self.features:
+            features = [f.strip() for f in self.features.split('\n') if f.strip()]
+        # Tenta dividir por ponto e vírgula
+        elif ';' in self.features:
+            features = [f.strip() for f in self.features.split(';') if f.strip()]
+        # Tenta dividir por vírgula
+        elif ',' in self.features:
+            features = [f.strip() for f in self.features.split(',') if f.strip()]
+        else:
+            # Se não houver separadores, retorna a string como um único item
+            features = [self.features.strip()]
+        
+        return features
+    
+    def get_preco_formatado(self):
+        """Formata o preço para exibição"""
+        preco = str(self.preco).replace(',', '.')
+        try:
+            # Tenta converter para float para garantir formato correto
+            preco_float = float(preco)
+            return f"{preco_float:,.2f}".replace(',', 'temp').replace('.', ',').replace('temp', '.')
+        except:
+            return self.preco
 class Configuracao(db.Model):
     __tablename__ = 'configuracoes'
     id = db.Column(db.Integer, primary_key=True)
