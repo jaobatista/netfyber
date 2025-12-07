@@ -7,6 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
 import bleach
+from bleach.sanitizer import Cleaner
+import re
 from urllib.parse import urlparse
 
 app = Flask(__name__)
@@ -75,30 +77,107 @@ def validate_filename(filename):
         return False
     
     return True
-
+    
 def sanitize_html(content):
-    """Sanitização segura de HTML"""
+    """Sanitização segura de HTML para conteúdo do blog"""
     if not content:
         return ""
     
-    allowed_tags = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a', 'ul', 'ol', 'li']
+    # Tags permitidas
+    allowed_tags = [
+        'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a',
+        'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 
+        'blockquote', 'img', 'span', 'div'
+    ]
+    
+    # Atributos permitidos
     allowed_attributes = {
-        'a': ['href', 'target', 'rel']
+        'a': ['href', 'target', 'rel', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height', 'style'],
+        '*': ['class', 'id', 'style']
     }
     
-    sanitized = bleach.clean(
-        content,
+    # Configurar o cleaner
+    cleaner = Cleaner(
         tags=allowed_tags,
         attributes=allowed_attributes,
+        styles=['color', 'background-color', 'font-size', 'text-align'],
         strip=True,
-        strip_comments=True
+        strip_comments=True,
+        filters=[]
     )
     
-    sanitized = bleach.linkify(sanitized, callbacks=[
-        lambda attrs, new: add_noopener(attrs, new)
-    ])
+    # Processar conteúdo markdown-like
+    content = process_markdown(content)
+    
+    # Sanitizar
+    sanitized = cleaner.clean(content)
+    
+    # Adicionar noopener a links externos
+    sanitized = add_link_attributes(sanitized)
     
     return sanitized
+
+def process_markdown(content):
+    """Processa formatação estilo markdown"""
+    # Negrito: **texto** -> <strong>texto</strong>
+    content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', content, flags=re.DOTALL)
+    
+    # Itálico: *texto* -> <em>texto</em>
+    content = re.sub(r'\*(.*?)\*', r'<em>\1</em>', content, flags=re.DOTALL)
+    
+    # Títulos: ## Título -> <h2>Título</h2>
+    content = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
+    content = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
+    content = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', content, flags=re.MULTILINE)
+    
+    # Listas: - item -> <li>item</li>
+    lines = content.split('\n')
+    in_list = False
+    processed_lines = []
+    
+    for line in lines:
+        if line.strip().startswith('- '):
+            if not in_list:
+                processed_lines.append('<ul>')
+                in_list = True
+            processed_lines.append(f'<li>{line[2:].strip()}</li>')
+        else:
+            if in_list:
+                processed_lines.append('</ul>')
+                in_list = False
+            if line.strip():
+                # Se não for tag HTML, envolver em parágrafo
+                if not re.match(r'^<[^>]+>', line.strip()):
+                    processed_lines.append(f'<p>{line}</p>')
+                else:
+                    processed_lines.append(line)
+    
+    if in_list:
+        processed_lines.append('</ul>')
+    
+    content = '\n'.join(processed_lines)
+    
+    # Converter quebras de linha para <br>
+    content = content.replace('\n', '<br>')
+    
+    return content
+
+def add_link_attributes(sanitized_html):
+    """Adiciona atributos de segurança a links"""
+    def add_attrs(attrs, new=False):
+        href = attrs.get((None, 'href'), '')
+        if href and href.startswith(('http://', 'https://')):
+            attrs[(None, 'target')] = '_blank'
+            if (None, 'rel') in attrs:
+                attrs[(None, 'rel')] = attrs[(None, 'rel')] + ' noopener noreferrer'
+            else:
+                attrs[(None, 'rel')] = 'noopener noreferrer'
+        return attrs
+    
+    return bleach.linkify(sanitized_html, callbacks=[add_attrs])
+
+# ... resto do código do app.py permanece igual ...
 
 def add_noopener(attrs, new):
     """Adiciona noopener a links externos"""

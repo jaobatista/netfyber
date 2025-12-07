@@ -1,5 +1,5 @@
 // ========================================
-// SISTEMA DE COOKIES PROFISSIONAL - CORRIGIDO
+// SISTEMA DE COOKIES PROFISSIONAL
 // ========================================
 
 class CookieManager {
@@ -76,11 +76,33 @@ class CookieManager {
     }
 
     showNotification(message, type = 'info') {
-        if (typeof showNotification === 'function') {
-            showNotification(message, type);
-        } else {
-            console.log(`${type.toUpperCase()}: ${message}`);
+        const existingNotification = document.querySelector('.alert.position-fixed');
+        if (existingNotification) {
+            existingNotification.remove();
         }
+
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = `
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        `;
+        
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
     }
 
     applyPreferences(preferences) {
@@ -99,10 +121,12 @@ class CookieManager {
 
     enableAnalytics() {
         console.log('📊 Analytics ativado');
+        // Implementar Google Analytics ou similar
     }
 
     disableAnalytics() {
         console.log('📊 Analytics desativado');
+        // Desativar Google Analytics
     }
 
     enablePersonalization() {
@@ -147,508 +171,7 @@ class CookieManager {
 }
 
 // ========================================
-// SISTEMA DE GEOLOCALIZAÇÃO - CORRIGIDO
-// ========================================
-
-class GeolocationManager {
-    constructor() {
-        this.timeout = 10000;
-        this.maxAge = 5 * 60 * 1000;
-        this.lastLocation = null;
-        this.init();
-    }
-
-    init() {
-        this.loadCachedLocation();
-        
-        if (!this.hasLocationPermissionDenied()) {
-            setTimeout(() => {
-                this.getCurrentLocation().catch(() => {});
-            }, 2000);
-        }
-    }
-
-    hasLocationPermissionDenied() {
-        try {
-            return localStorage.getItem('location_permission_denied') === 'true';
-        } catch {
-            return false;
-        }
-    }
-
-    setLocationPermissionDenied() {
-        try {
-            localStorage.setItem('location_permission_denied', 'true');
-        } catch (error) {
-            console.warn('Não foi possível salvar preferência de localização');
-        }
-    }
-
-    async getCurrentLocation() {
-        if (this.lastLocation && (Date.now() - this.lastLocation.timestamp < this.maxAge)) {
-            return this.lastLocation;
-        }
-
-        return new Promise((resolve, reject) => {
-            if (!('geolocation' in navigator)) {
-                reject(new Error('Geolocalização não suportada'));
-                return;
-            }
-
-            const options = {
-                enableHighAccuracy: false,
-                timeout: this.timeout,
-                maximumAge: this.maxAge
-            };
-
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    try {
-                        const location = await this.reverseGeocode(
-                            position.coords.latitude,
-                            position.coords.longitude
-                        );
-                        
-                        this.lastLocation = {
-                            ...location,
-                            timestamp: Date.now(),
-                            coords: position.coords
-                        };
-                        
-                        this.saveToCache(this.lastLocation);
-                        resolve(this.lastLocation);
-                        
-                    } catch (error) {
-                        reject(error);
-                    }
-                },
-                (error) => {
-                    const errorMessage = this.getErrorMessage(error);
-                    reject(new Error(errorMessage));
-                },
-                options
-            );
-        });
-    }
-
-    async reverseGeocode(lat, lon) {
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=pt-BR`
-            );
-
-            if (!response.ok) throw new Error('Erro na requisição de geocoding');
-
-            const data = await response.json();
-            
-            return {
-                city: data.address.city || data.address.town || data.address.village || 'Cidade desconhecida',
-                state: data.address.state || 'Estado desconhecido',
-                country: data.address.country || 'País desconhecido',
-                displayName: data.display_name || '',
-                lat: lat,
-                lon: lon
-            };
-            
-        } catch (error) {
-            console.warn('Erro no reverse geocoding:', error);
-            return {
-                city: 'Localização aproximada',
-                state: `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`,
-                country: '',
-                displayName: '',
-                lat: lat,
-                lon: lon
-            };
-        }
-    }
-
-    getErrorMessage(error) {
-        switch (error.code) {
-            case error.PERMISSION_DENIED:
-                this.setLocationPermissionDenied();
-                return 'Permissão de localização negada.';
-            case error.POSITION_UNAVAILABLE:
-                return 'Localização indisponível. Verifique sua conexão e GPS.';
-            case error.TIMEOUT:
-                return 'Tempo de espera esgotado. Tente novamente.';
-            default:
-                return 'Erro ao obter localização. Tente novamente mais tarde.';
-        }
-    }
-
-    loadCachedLocation() {
-        try {
-            const cached = localStorage.getItem('netfyber_location');
-            if (cached) {
-                const location = JSON.parse(cached);
-                if (Date.now() - location.timestamp < this.maxAge) {
-                    this.lastLocation = location;
-                    this.updateLocationDisplay();
-                }
-            }
-        } catch (error) {
-            console.warn('Erro ao carregar localização em cache:', error);
-        }
-    }
-
-    saveToCache(location) {
-        try {
-            localStorage.setItem('netfyber_location', JSON.stringify(location));
-        } catch (error) {
-            console.warn('Erro ao salvar localização em cache:', error);
-        }
-    }
-
-    updateLocationDisplay() {
-        const locationElement = document.getElementById('user-location');
-        if (locationElement && this.lastLocation) {
-            locationElement.textContent = `${this.lastLocation.city} - ${this.lastLocation.state}`;
-            locationElement.classList.remove('text-muted');
-            locationElement.classList.add('geolocation-success');
-        }
-    }
-
-    async requestLocation() {
-        try {
-            const location = await this.getCurrentLocation();
-            this.updateLocationDisplay();
-            return location;
-        } catch (error) {
-            console.warn('Erro na geolocalização:', error);
-            const locationElement = document.getElementById('user-location');
-            if (locationElement) {
-                locationElement.textContent = 'Localização não disponível';
-                locationElement.classList.add('geolocation-error');
-            }
-            throw error;
-        }
-    }
-
-    async getLocation() {
-        return this.requestLocation();
-    }
-}
-
-// ========================================
-// SISTEMA DE CARROSSEL PARA PLANOS - CORRIGIDO
-// ========================================
-
-class CarrosselPlanos {
-    constructor(containerSeletor = '.carrossel-planos-container') {
-        this.container = document.querySelector(containerSeletor);
-        if (!this.container) return;
-        
-        this.carrossel = this.container.querySelector('.carrossel-planos');
-        this.botaoAnterior = this.container.querySelector('.carrossel-anterior');
-        this.botaoProximo = this.container.querySelector('.carrossel-proximo');
-        this.indicadoresContainer = this.container.querySelector('.carrossel-indicadores');
-        
-        this.slides = Array.from(this.carrossel.children);
-        this.totalSlides = this.slides.length;
-        this.currentIndex = 0;
-        this.isDragging = false;
-        this.startX = 0;
-        this.currentX = 0;
-        this.autoPlayInterval = null;
-        
-        this.init();
-    }
-    
-    init() {
-        if (this.totalSlides === 0) return;
-        
-        this.createIndicators();
-        this.updateCarrossel();
-        this.addEventListeners();
-        this.startAutoPlay();
-    }
-    
-    getSlidesPerView() {
-        if (window.innerWidth >= 992) return 3;
-        if (window.innerWidth >= 768) return 2;
-        return 1;
-    }
-    
-    createIndicators() {
-        this.indicadoresContainer.innerHTML = '';
-        const slidesPerView = this.getSlidesPerView();
-        const totalIndicators = Math.ceil(this.totalSlides / slidesPerView);
-        
-        for (let i = 0; i < totalIndicators; i++) {
-            const indicator = document.createElement('button');
-            indicator.className = `carrossel-indicador ${i === 0 ? 'ativo' : ''}`;
-            indicator.setAttribute('aria-label', `Ir para grupo de planos ${i + 1}`);
-            indicator.addEventListener('click', () => this.goToSlide(i * slidesPerView));
-            this.indicadoresContainer.appendChild(indicator);
-        }
-    }
-    
-    updateCarrossel() {
-        const slidesPerView = this.getSlidesPerView();
-        const translateX = -(this.currentIndex * (100 / slidesPerView));
-        
-        this.carrossel.style.transform = `translateX(${translateX}%)`;
-        
-        const indicators = this.indicadoresContainer.children;
-        const activeIndicator = Math.floor(this.currentIndex / slidesPerView);
-        
-        for (let i = 0; i < indicators.length; i++) {
-            indicators[i].classList.toggle('ativo', i === activeIndicator);
-        }
-        
-        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
-        this.botaoAnterior.disabled = this.currentIndex === 0;
-        this.botaoProximo.disabled = this.currentIndex >= maxIndex;
-        
-        this.carrossel.classList.add('animando');
-        setTimeout(() => {
-            this.carrossel.classList.remove('animando');
-        }, 500);
-    }
-    
-    goToSlide(index) {
-        const slidesPerView = this.getSlidesPerView();
-        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
-        this.currentIndex = Math.max(0, Math.min(index, maxIndex));
-        this.updateCarrossel();
-        this.resetAutoPlay();
-    }
-    
-    nextSlide() {
-        const slidesPerView = this.getSlidesPerView();
-        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
-        
-        if (this.currentIndex < maxIndex) {
-            this.currentIndex++;
-        } else {
-            this.currentIndex = 0;
-        }
-        this.updateCarrossel();
-        this.resetAutoPlay();
-    }
-    
-    prevSlide() {
-        const slidesPerView = this.getSlidesPerView();
-        if (this.currentIndex > 0) {
-            this.currentIndex--;
-        } else {
-            const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
-            this.currentIndex = maxIndex;
-        }
-        this.updateCarrossel();
-        this.resetAutoPlay();
-    }
-    
-    addEventListeners() {
-        if (this.botaoAnterior) {
-            this.botaoAnterior.addEventListener('click', () => this.prevSlide());
-        }
-        if (this.botaoProximo) {
-            this.botaoProximo.addEventListener('click', () => this.nextSlide());
-        }
-        
-        this.addTouchEvents();
-        this.addKeyboardEvents();
-        
-        window.addEventListener('resize', () => this.handleResize());
-    }
-    
-    addTouchEvents() {
-        this.carrossel.addEventListener('touchstart', (e) => {
-            this.startX = e.touches[0].clientX;
-            this.isDragging = true;
-            this.carrossel.style.transition = 'none';
-        });
-        
-        this.carrossel.addEventListener('touchmove', (e) => {
-            if (!this.isDragging) return;
-            this.currentX = e.touches[0].clientX;
-            const diff = this.startX - this.currentX;
-            const slidesPerView = this.getSlidesPerView();
-            const translateX = -(this.currentIndex * (100 / slidesPerView)) - (diff / this.carrossel.offsetWidth) * 100;
-            this.carrossel.style.transform = `translateX(${translateX}%)`;
-        });
-        
-        this.carrossel.addEventListener('touchend', () => {
-            if (!this.isDragging) return;
-            this.isDragging = false;
-            this.carrossel.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-            
-            const diff = this.startX - this.currentX;
-            const threshold = 50;
-            
-            if (diff > threshold) {
-                this.nextSlide();
-            } else if (diff < -threshold) {
-                this.prevSlide();
-            } else {
-                this.updateCarrossel();
-            }
-            
-            this.resetAutoPlay();
-        });
-    }
-    
-    addKeyboardEvents() {
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                this.prevSlide();
-            }
-            if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                this.nextSlide();
-            }
-        });
-    }
-    
-    handleResize() {
-        this.createIndicators();
-        this.updateCarrossel();
-    }
-    
-    startAutoPlay() {
-        this.autoPlayInterval = setInterval(() => {
-            this.nextSlide();
-        }, 8000);
-    }
-    
-    resetAutoPlay() {
-        if (this.autoPlayInterval) {
-            clearInterval(this.autoPlayInterval);
-            this.startAutoPlay();
-        }
-    }
-    
-    destroy() {
-        if (this.autoPlayInterval) {
-            clearInterval(this.autoPlayInterval);
-        }
-    }
-}
-
-// ========================================
-// INICIALIZAÇÃO DO CARROSSEL - CORRIGIDA
-// ========================================
-
-function initPlanosCarousel() {
-    const carrosselContainer = document.querySelector('.carrossel-planos-container');
-    if (!carrosselContainer) {
-        console.log('❌ Container do carrossel não encontrado');
-        return;
-    }
-    
-    try {
-        window.planosCarousel = new CarrosselPlanos();
-        console.log('✅ Carrossel de planos inicializado');
-    } catch (error) {
-        console.error('❌ Erro ao inicializar carrossel:', error);
-    }
-}
-
-// ========================================
-// SISTEMA DE NOTIFICAÇÕES
-// ========================================
-
-function showNotification(message, type = 'info') {
-    const existingNotification = document.querySelector('.alert.position-fixed');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
-
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = `
-        top: 20px;
-        right: 20px;
-        z-index: 9999;
-        min-width: 300px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    `;
-    
-    notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-// ========================================
-// FUNÇÕES DE INTERFACE PARA COOKIES
-// ========================================
-
-function aceitarTodosCookies() {
-    if (window.cookieManager) {
-        window.cookieManager.acceptAll();
-    }
-}
-
-function aceitarCookiesEssenciais() {
-    if (window.cookieManager) {
-        window.cookieManager.acceptEssential();
-    }
-}
-
-function aceitarCookies() {
-    aceitarTodosCookies();
-}
-
-function configurarCookies() {
-    const modal = new bootstrap.Modal(document.getElementById('cookieSettingsModal'));
-    modal.show();
-}
-
-function salvarPreferenciasCookies() {
-    const analytics = document.getElementById('cookieAnalytics').checked;
-    const personalization = document.getElementById('cookiePersonalization').checked;
-    
-    if (window.cookieManager) {
-        window.cookieManager.customPreferences(analytics, personalization);
-    }
-    
-    const modal = bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'));
-    if (modal) {
-        modal.hide();
-    }
-}
-
-// ========================================
-// FUNÇÕES DE INTERFACE PARA GEOLOCALIZAÇÃO
-// ========================================
-
-async function obterLocalizacaoUsuario() {
-    try {
-        if (!window.geolocationManager) {
-            throw new Error('Gerenciador de geolocalização não inicializado');
-        }
-        await window.geolocationManager.getLocation();
-    } catch (error) {
-        console.warn('Erro na geolocalização:', error);
-        solicitarLocalizacaoManual();
-    }
-}
-
-function solicitarLocalizacaoManual() {
-    const locationElement = document.getElementById('user-location');
-    if (locationElement) {
-        locationElement.innerHTML = `
-            <button class="btn btn-sm btn-outline-light" onclick="obterLocalizacaoUsuario()">
-                <i class="bi bi-geo-alt"></i> Ativar Localização
-            </button>
-        `;
-    }
-}
-
-// ========================================
-// INICIALIZAÇÃO CORRIGIDA E SEGURA
+// INICIALIZAÇÃO CORRIGIDA
 // ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -660,36 +183,37 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ NetFyber - Sistema inicializado com sucesso!');
     } catch (error) {
         console.error('❌ Erro na inicialização:', error);
-        showNotification('Erro na inicialização do sistema. Recarregue a página.', 'danger');
     }
 });
 
 function initEssentialSystems() {
-    if (typeof CookieManager !== 'undefined') {
-        window.cookieManager = new CookieManager();
-    }
+    // Inicializar Cookie Manager
+    window.cookieManager = new CookieManager();
     
+    // Inicializar Geolocation Manager se existir
     if (typeof GeolocationManager !== 'undefined') {
         window.geolocationManager = new GeolocationManager();
     }
     
+    // Inicializar componentes
     initSmoothScroll();
     initBootstrapTooltips();
     initScrollAnimations();
+    initFormValidations();
 }
 
 function initPageSpecificComponents() {
     const path = window.location.pathname;
     
+    // Inicializar carrossel de planos se estiver na página de planos
     if (path.includes('/planos') || path === '/') {
         initPlanosCarousel();
     }
     
+    // Inicializar filtros do blog se estiver na página do blog
     if (path.includes('/blog')) {
         initBlogFilters();
     }
-    
-    initFormValidations();
 }
 
 function initSmoothScroll() {
@@ -782,7 +306,23 @@ function validateForm(form) {
 }
 
 // ========================================
-// BLOG FILTERS - CORRIGIDO
+// CARROSSEL DE PLANOS
+// ========================================
+
+function initPlanosCarousel() {
+    const carrosselContainer = document.querySelector('.carrossel-planos-container');
+    if (!carrosselContainer) return;
+    
+    try {
+        window.planosCarousel = new CarrosselPlanos();
+        console.log('✅ Carrossel de planos inicializado');
+    } catch (error) {
+        console.error('❌ Erro ao inicializar carrossel:', error);
+    }
+}
+
+// ========================================
+// FILTROS DO BLOG
 // ========================================
 
 function initBlogFilters() {
@@ -790,9 +330,7 @@ function initBlogFilters() {
     const blogPosts = document.querySelectorAll('.blog-post-item');
     const filterCount = document.getElementById('filter-count');
 
-    if (filterButtons.length === 0 || blogPosts.length === 0) {
-        return;
-    }
+    if (filterButtons.length === 0 || blogPosts.length === 0) return;
 
     function updateFilterCount(filter, count) {
         let message = '';
@@ -811,10 +349,6 @@ function initBlogFilters() {
         
         if (filterCount) {
             filterCount.textContent = message;
-            filterCount.style.opacity = '0.7';
-            setTimeout(() => {
-                filterCount.style.opacity = '1';
-            }, 150);
         }
     }
 
@@ -826,24 +360,10 @@ function initBlogFilters() {
             const shouldShow = filterValue === 'all' || postCategory === filterValue;
             
             if (shouldShow) {
-                post.style.display = 'block';
                 post.classList.remove('hidden');
                 visibleCount++;
-                
-                setTimeout(() => {
-                    post.style.opacity = '1';
-                    post.style.transform = 'translateY(0)';
-                    post.style.visibility = 'visible';
-                }, 50);
             } else {
-                post.style.opacity = '0';
-                post.style.transform = 'translateY(20px)';
-                
-                setTimeout(() => {
-                    post.classList.add('hidden');
-                    post.style.display = 'none';
-                    post.style.visibility = 'hidden';
-                }, 300);
+                post.classList.add('hidden');
             }
         });
         
@@ -861,19 +381,7 @@ function initBlogFilters() {
             this.classList.add('active', 'btn-primary');
             
             const filterValue = this.getAttribute('data-filter');
-            
-            const originalHTML = this.innerHTML;
-            this.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-2"></i>Filtrando...';
-            
-            setTimeout(() => {
-                const icon = filterValue === 'all' ? 'bi-grid-3x3-gap' : 
-                            filterValue === 'tecnologia' ? 'bi-cpu' : 'bi-newspaper';
-                const text = filterValue === 'all' ? 'Todos' : 
-                            filterValue === 'tecnologia' ? 'Tecnologia' : 'Notícias';
-                this.innerHTML = `<i class="bi ${icon} me-2"></i>${text}`;
-                
-                filterPosts(filterValue);
-            }, 300);
+            filterPosts(filterValue);
         });
     });
 
@@ -881,30 +389,24 @@ function initBlogFilters() {
 }
 
 // ========================================
-// GLOBAL UTILITIES
+// EXPORTAR FUNÇÕES GLOBAIS
 // ========================================
 
 window.NetFyberUtils = {
-    showNotification,
-    validateForm,
-    initBlogFilters,
-    initPlanosCarousel,
-    CarrosselPlanos,
     CookieManager,
-    GeolocationManager
+    initBlogFilters,
+    initPlanosCarousel
 };
 
 // ========================================
-// ERROR HANDLING
+// HANDLING DE ERROS
 // ========================================
 
 window.addEventListener('error', function(e) {
     console.error('Erro global capturado:', e.error);
-    showNotification('Ocorreu um erro inesperado. Tente novamente.', 'danger');
 });
 
 window.addEventListener('unhandledrejection', function(e) {
     console.error('Promise rejeitada não tratada:', e.reason);
-    showNotification('Erro de carregamento. Verifique sua conexão.', 'warning');
     e.preventDefault();
 });

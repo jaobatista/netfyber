@@ -1,48 +1,50 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 - Erro Interno</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #dc3545 0%, #ff6b6b 100%);
-            color: white;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 20px;
-        }
-        .container { max-width: 600px; }
-        h1 { font-size: 6rem; margin: 0; color: white; }
-        h2 { font-size: 2rem; margin: 0 0 20px 0; }
-        p { font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9; }
-        .btn {
-            display: inline-block;
-            background: white;
-            color: #dc3545;
-            padding: 12px 30px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>500</h1>
-        <h2>Erro Interno do Servidor</h2>
-        <p>Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.</p>
-        <a href="/" class="btn">Página Inicial</a>
+{% extends "public/base.html" %}
+
+{% block title %}500 - Erro Interno{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="min-height: 60vh;">
+    <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+            <div class="error-container">
+                <h1 class="display-1 fw-bold text-primary">500</h1>
+                <h2 class="h2 mb-4">Erro Interno do Servidor</h2>
+                <p class="lead mb-4">Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.</p>
+                <div class="d-flex gap-3 justify-content-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-house-door me-2"></i> Página Inicial
+                    </a>
+                    <button onclick="window.location.reload()" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-arrow-clockwise me-2"></i> Tentar Novamente
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
-</body>
-</html>
+</div>
+
+<style>
+.error-container {
+    padding: 3rem;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.display-1 {
+    font-size: 6rem;
+    color: #dc3545;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .display-1 {
+        font-size: 4rem;
+    }
+    
+    .error-container {
+        padding: 2rem;
+    }
+}
+</style>
+{% endblock %}

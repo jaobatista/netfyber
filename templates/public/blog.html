@@ -1,5 +1,7 @@
 {% extends "public/base.html" %}
 
+{% block title %}Blog - NetFyber Telecom{% endblock %}
+
 {% block content %}
 <!-- Blog Header -->
 <section class="blog-header-section py-5">
@@ -121,7 +123,6 @@
 
 {% block extra_css %}
 <style>
-/* Estilos do Blog */
 .blog-header-section {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     position: relative;
@@ -138,7 +139,6 @@
     opacity: 0.6;
 }
 
-/* Otimização para imagens do blog */
 .post-image {
     background: #f8f9fa;
     min-height: 250px;
@@ -154,19 +154,10 @@
     transform: scale(1.05);
 }
 
-/* Garantir proporção consistente */
-@media (max-width: 768px) {
-    .post-image {
-        min-height: 300px;
-    }
-}
-
-/* Gradient overlay para imagem */
 .gradient-overlay {
     background: linear-gradient(transparent, rgba(0,0,0,0.7));
 }
 
-/* Filter Animation */
 .blog-post-item {
     opacity: 1;
     transform: translateY(0);
@@ -181,7 +172,6 @@
     overflow: hidden;
 }
 
-/* Cards hover effects */
 .shadow-hover {
     transition: all 0.3s ease;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -192,7 +182,6 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
 }
 
-/* Estilos para conteúdo formatado */
 .post-content strong {
     color: #0d6efd;
     font-weight: 700;
@@ -212,12 +201,17 @@
     line-height: 1.5;
 }
 
-.post-content h4 {
+.post-content h1, .post-content h2, .post-content h3, .post-content h4 {
     color: #0d6efd;
     margin-top: 1.5rem;
     margin-bottom: 1rem;
     font-weight: 600;
 }
+
+.post-content h1 { font-size: 2rem; }
+.post-content h2 { font-size: 1.75rem; }
+.post-content h3 { font-size: 1.5rem; }
+.post-content h4 { font-size: 1.25rem; }
 
 .post-content a {
     color: #0d6efd;
@@ -231,7 +225,21 @@
     border-bottom-color: #0a58ca;
 }
 
-/* Responsividade para conteúdo */
+.post-content blockquote {
+    border-left: 4px solid #0d6efd;
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+    color: #6c757d;
+}
+
+.post-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
 @media (max-width: 768px) {
     .post-title {
         font-size: 1.5rem;
@@ -240,9 +248,13 @@
     .post-content {
         font-size: 0.95rem;
     }
+    
+    .post-content h1 { font-size: 1.75rem; }
+    .post-content h2 { font-size: 1.5rem; }
+    .post-content h3 { font-size: 1.25rem; }
+    .post-content h4 { font-size: 1.1rem; }
 }
 
-/* Animações de entrada suave */
 .posts-grid {
     animation: fadeIn 0.6s ease-in;
 }
@@ -267,14 +279,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     filterButtons.forEach(button => {
         button.addEventListener('click', function() {
-            // Remove active class from all buttons
             filterButtons.forEach(btn => {
                 btn.classList.remove('active');
                 btn.classList.remove('btn-primary');
                 btn.classList.add('btn-outline-primary');
             });
 
-            // Add active class to clicked button
             this.classList.add('active');
             this.classList.remove('btn-outline-primary');
             this.classList.add('btn-primary');
@@ -298,7 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Inicializar contagem
     updateFilterCount(posts.length);
 });
 </script>

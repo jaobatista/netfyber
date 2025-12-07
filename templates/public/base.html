@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,10 +25,21 @@
         }
         
         .site-footer {
-            margin-top: 0;
+            margin-top: auto;
             flex-shrink: 0;
         }
+        
+        /* Estilos específicos do cookie banner */
+        #cookie-banner {
+            display: none;
+        }
+        
+        #cookie-banner.show {
+            display: block;
+        }
     </style>
+    
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
     <!-- Top Bar -->
@@ -73,11 +84,10 @@
                     <li class="nav-item">
                         <a class="nav-link {{ 'active fw-bold' if request.endpoint == 'velocimetro' }}" href="{{ url_for('velocimetro') }}">Velocímetro</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active fw-bold' if request.endpoint == 'sobre' }}" href="{{ url_for('sobre') }}">Sobre Nós</a>
+                    </li>
                 </ul>
-                
-                <a href="{{ url_for('sobre') }}" class="btn btn-primary">
-                    <i class="bi bi-info-circle"></i> Sobre Nós
-                </a>
             </div>
         </div>
     </nav>
@@ -108,10 +118,10 @@
                 <div class="col-md-4">
                     <h5 class="text-warning mb-3"><i class="bi bi-share"></i> REDES SOCIAIS</h5>
                     <div class="d-flex gap-3">
-                        <a href="https://api.whatsapp.com/send?phone={{ configs.get('whatsapp_numero', '556384941778') }}" class="text-white fs-4" target="_blank">
+                        <a href="https://api.whatsapp.com/send?phone={{ configs.get('whatsapp_numero', '556384941778') }}" class="text-white fs-4" target="_blank" rel="noopener noreferrer">
                             <i class="bi bi-whatsapp"></i>
                         </a>
-                        <a href="{{ configs.get('instagram_url', 'https://www.instagram.com/netfybertelecom') }}" class="text-white fs-4" target="_blank">
+                        <a href="{{ configs.get('instagram_url', 'https://www.instagram.com/netfybertelecom') }}" class="text-white fs-4" target="_blank" rel="noopener noreferrer">
                             <i class="bi bi-instagram"></i>
                         </a>
                     </div>
@@ -142,7 +152,7 @@
                         <button type="button" class="btn cookie-btn cookie-btn-settings" onclick="configurarCookies()">
                             <i class="bi bi-gear"></i> Configurar
                         </button>
-                        <button type="button" class="btn cookie-btn cookie-btn-accept" onclick="aceitarCookies()">
+                        <button type="button" class="btn cookie-btn cookie-btn-accept" onclick="aceitarTodosCookies()">
                             <i class="bi bi-check-lg"></i> Aceitar Todos
                         </button>
                     </div>
@@ -159,7 +169,7 @@
                     <h5 class="modal-title">
                         <i class="bi bi-shield-check me-2"></i>Configurações de Cookies
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <p class="text-muted mb-4">
@@ -216,5 +226,46 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        // Inicializar Cookie Manager
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof CookieManager !== 'undefined') {
+                window.cookieManager = new CookieManager();
+            }
+        });
+        
+        // Funções globais para cookies
+        function aceitarTodosCookies() {
+            if (window.cookieManager) {
+                window.cookieManager.acceptAll();
+            }
+        }
+        
+        function configurarCookies() {
+            const modal = new bootstrap.Modal(document.getElementById('cookieSettingsModal'));
+            modal.show();
+        }
+        
+        function salvarPreferenciasCookies() {
+            const analytics = document.getElementById('cookieAnalytics').checked;
+            const personalization = document.getElementById('cookiePersonalization').checked;
+            
+            if (window.cookieManager) {
+                window.cookieManager.customPreferences(analytics, personalization);
+            }
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'));
+            if (modal) {
+                modal.hide();
+            }
+        }
+        
+        function aceitarCookies() {
+            aceitarTodosCookies();
+        }
+    </script>
+    
+    {% block extra_js %}{% endblock %}
 </body>
 </html>
