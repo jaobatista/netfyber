@@ -7,50 +7,7 @@
                 url("{{ url_for('static', filename='images/terra.png') }}") no-repeat center center;
     background-size: cover;
     min-height: calc(100vh - 200px);
-    padding: 3rem 0;
-}
-
-/* Correção emergencial para o carrossel */
-.carrossel-fix {
-    max-width: 1200px;
-    margin: 0 auto;
-    position: relative;
-}
-
-.carrossel-fix .carrossel-planos {
-    display: flex;
-    gap: 2rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding: 1rem 0;
-}
-
-.carrossel-fix .carrossel-planos::-webkit-scrollbar {
-    display: none;
-}
-
-.carrossel-fix .carrossel-item {
-    flex: 0 0 300px;
-    scroll-snap-align: start;
-}
-
-/* Layout de fallback se o carrossel não carregar */
-.planos-grid {
-    display: none; /* Inicialmente escondido */
-}
-
-@media (max-width: 768px) {
-    .carrossel-fix .carrossel-item {
-        flex: 0 0 280px;
-    }
-}
-
-@media (max-width: 576px) {
-    .carrossel-fix .carrossel-item {
-        flex: 0 0 250px;
-    }
+    padding: 2rem 0;
 }
 </style>
 
@@ -62,8 +19,8 @@
             <p class="lead text-dark">Escolha o plano perfeito para sua necessidade</p>
         </div>
 
-        <!-- Carrossel Simples (Fallback) -->
-        <div class="carrossel-fix">
+        <!-- Carrossel de Planos -->
+        <div class="carrossel-planos-container position-relative">
             <div class="carrossel-planos" id="carrosselPlanos">
                 {% for plano in planos %}
                 <div class="carrossel-item">
@@ -71,200 +28,57 @@
                         {% if plano.recomendado %}recommended{% endif %}">
                         
                         {% if plano.recomendado %}
-                        <div class="position-absolute top-0 start-50 translate-middle px-4 py-1 bg-warning text-dark rounded-pill small fw-bold" style="z-index: 1;">
+                        <div class="position-absolute top-0 start-50 translate-middle px-4 py-1 bg-warning text-dark rounded-pill small fw-bold">
                             <i class="bi bi-star-fill"></i> RECOMENDADO
                         </div>
                         {% endif %}
                         
                         <div class="card-body p-4 d-flex flex-column">
                             <div class="text-center mb-4">
-                                <h3 class="card-title fw-bold text-primary mb-3">{{ plano.nome }}</h3>
-                                {% if plano.velocidade %}
-                                <p class="text-muted mb-2">
-                                    <i class="bi bi-speedometer2 me-1"></i>
-                                    {{ plano.velocidade }}
-                                </p>
-                                {% endif %}
-                                <div class="price-tag bg-warning bg-opacity-25 text-dark rounded-pill px-4 py-3 d-inline-block my-3 shadow-sm">
-                                    <span class="h3 fw-bold mb-0">R$ {{ plano.preco }}</span>
-                                    <small class="text-dark opacity-75 d-block">/mês</small>
+                                <h3 class="card-title fw-bold text-primary">{{ plano.nome }}</h3>
+                                <div class="price-tag bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2 d-inline-block my-3 shadow-sm">
+                                    <span class="h4 fw-bold mb-0">R$ {{ plano.preco }}</span>
+                                    <small class="text-dark opacity-75">/mês</small>
                                 </div>
                             </div>
                             
                             <ul class="list-unstyled mb-4 flex-grow-1">
-                                {% set features_list = plano.get_features_list() %}
-                                {% if features_list %}
-                                    {% for feature in features_list %}
-                                    <li class="mb-3">
-                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                        <span>{{ feature }}</span>
-                                    </li>
-                                    {% endfor %}
-                                {% else %}
-                                    <li class="mb-3">
-                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                        <span>Wi-Fi Grátis</span>
-                                    </li>
-                                    <li class="mb-3">
-                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                        <span>Instalação Grátis</span>
-                                    </li>
-                                    <li class="mb-3">
-                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                        <span>Suporte 24h</span>
-                                    </li>
-                                {% endif %}
+                                {% for feature in plano.features %}
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    {{ feature }}
+                                </li>
+                                {% endfor %}
                             </ul>
                             
-                            {% set whatsapp_msg = "Olá, gostaria de saber mais sobre o plano " + plano.nome + " (" + (plano.velocidade or "") + ")" %}
+                            {% set whatsapp_msg = "Olá, quero adquirir o plano de " + plano.nome %}
                             <a href="https://wa.me/{{ configs.get('whatsapp_numero', '556384941778') }}?text={{ whatsapp_msg|urlencode }}" 
-                               class="btn btn-primary btn-lg w-100 mt-auto py-3" 
+                               class="btn btn-primary btn-lg w-100 mt-auto" 
                                target="_blank">
-                                <i class="bi bi-whatsapp me-2"></i> ASSINAR AGORA
+                                <i class="bi bi-whatsapp"></i> ASSINAR AGORA
                             </a>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-        </div>
 
-        <!-- Fallback: Grid de planos (aparece se carrossel falhar) -->
-        <div class="planos-grid row g-4 mt-4 d-none">
-            {% for plano in planos %}
-            <div class="col-md-4">
-                <div class="card plan-card h-100 border-0 shadow-lg position-relative 
-                    {% if plano.recomendado %}recommended{% endif %}">
-                    
-                    {% if plano.recomendado %}
-                    <div class="position-absolute top-0 start-50 translate-middle px-4 py-1 bg-warning text-dark rounded-pill small fw-bold" style="z-index: 1;">
-                        <i class="bi bi-star-fill"></i> RECOMENDADO
-                    </div>
-                    {% endif %}
-                    
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="text-center mb-4">
-                            <h3 class="card-title fw-bold text-primary mb-3">{{ plano.nome }}</h3>
-                            {% if plano.velocidade %}
-                            <p class="text-muted mb-2">
-                                <i class="bi bi-speedometer2 me-1"></i>
-                                {{ plano.velocidade }}
-                            </p>
-                            {% endif %}
-                            <div class="price-tag bg-warning bg-opacity-25 text-dark rounded-pill px-4 py-3 d-inline-block my-3 shadow-sm">
-                                <span class="h3 fw-bold mb-0">R$ {{ plano.preco }}</span>
-                                <small class="text-dark opacity-75 d-block">/mês</small>
-                            </div>
-                        </div>
-                        
-                        <ul class="list-unstyled mb-4 flex-grow-1">
-                            {% set features_list = plano.get_features_list() %}
-                            {% if features_list %}
-                                {% for feature in features_list %}
-                                <li class="mb-3">
-                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                    <span>{{ feature }}</span>
-                                </li>
-                                {% endfor %}
-                            {% else %}
-                                <li class="mb-3">
-                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                    <span>Wi-Fi Grátis</span>
-                                </li>
-                                <li class="mb-3">
-                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                    <span>Instalação Grátis</span>
-                                </li>
-                                <li class="mb-3">
-                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                    <span>Suporte 24h</span>
-                                </li>
-                            {% endif %}
-                        </ul>
-                        
-                        {% set whatsapp_msg = "Olá, gostaria de saber mais sobre o plano " + plano.nome + " (" + (plano.velocidade or "") + ")" %}
-                        <a href="https://wa.me/{{ configs.get('whatsapp_numero', '556384941778') }}?text={{ whatsapp_msg|urlencode }}" 
-                           class="btn btn-primary btn-lg w-100 mt-auto py-3" 
-                           target="_blank">
-                            <i class="bi bi-whatsapp me-2"></i> ASSINAR AGORA
-                        </a>
-                    </div>
-                </div>
+            <!-- Controles de Navegação -->
+            <button class="carrossel-controle carrossel-anterior position-absolute top-50 start-0 translate-middle-y" 
+                    aria-label="Plano anterior">
+                <i class="bi bi-chevron-left fs-4"></i>
+            </button>
+            
+            <button class="carrossel-controle carrossel-proximo position-absolute top-50 end-0 translate-middle-y" 
+                    aria-label="Próximo plano">
+                <i class="bi bi-chevron-right fs-4"></i>
+            </button>
+
+            <!-- Indicadores -->
+            <div class="carrossel-indicadores position-absolute start-50 translate-middle-x">
+                <!-- Gerados via JavaScript -->
             </div>
-            {% endfor %}
-        </div>
-
-        <!-- Nota informativa -->
-        <div class="alert alert-info mt-5 text-center">
-            <i class="bi bi-info-circle me-2"></i>
-            Todos os planos incluem instalação gratuita e suporte técnico especializado.
         </div>
     </div>
 </section>
-
-<!-- Script de inicialização robusto -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Inicializando página de planos...');
-    
-    // Fallback: Se não houver carrossel, mostra o grid
-    const carrossel = document.querySelector('.carrossel-planos');
-    const grid = document.querySelector('.planos-grid');
-    
-    if (carrossel && carrossel.children.length > 0) {
-        console.log(`✅ Carrossel encontrado com ${carrossel.children.length} planos`);
-        
-        // Verifica se os planos têm largura adequada
-        const planos = document.querySelectorAll('.carrossel-item');
-        planos.forEach(plano => {
-            if (plano.offsetWidth < 200) {
-                plano.style.minWidth = '300px';
-            }
-        });
-        
-        // Tenta inicializar o carrossel avançado
-        if (typeof initPlanosCarousel === 'function') {
-            try {
-                initPlanosCarousel();
-                console.log('✅ Carrossel avançado inicializado');
-            } catch (error) {
-                console.warn('⚠️ Carrossel avançado falhou, usando fallback simples:', error);
-                // Ativa scroll horizontal suave
-                carrossel.style.scrollBehavior = 'smooth';
-            }
-        }
-    } else {
-        console.warn('⚠️ Carrossel não encontrado, mostrando grid');
-        if (grid) {
-            grid.classList.remove('d-none');
-            grid.classList.add('d-flex');
-        }
-    }
-    
-    // Verifica e corrige features mal formatadas
-    document.querySelectorAll('.carrossel-item li').forEach(item => {
-        const text = item.textContent.trim();
-        if (text.length === 1 && text.match(/[a-zA-Z]/)) {
-            console.warn('⚠️ Feature mal formatada encontrada:', text);
-            item.style.display = 'none';
-        }
-    });
-    
-    // Adiciona navegação manual simples
-    const btnPrev = document.querySelector('.carrossel-anterior');
-    const btnNext = document.querySelector('.carrossel-proximo');
-    
-    if (btnPrev && btnNext && carrossel) {
-        btnPrev.addEventListener('click', function() {
-            carrossel.scrollLeft -= 320;
-        });
-        
-        btnNext.addEventListener('click', function() {
-            carrossel.scrollLeft += 320;
-        });
-        
-        console.log('✅ Navegação manual configurada');
-    }
-});
-</script>
 {% endblock %}

@@ -1,5 +1,5 @@
 // ========================================
-// SISTEMA DE COOKIES PROFISSIONAL
+// SISTEMA DE COOKIES PROFISSIONAL - CORRIGIDO
 // ========================================
 
 class CookieManager {
@@ -147,7 +147,7 @@ class CookieManager {
 }
 
 // ========================================
-// SISTEMA DE GEOLOCALIZAÇÃO
+// SISTEMA DE GEOLOCALIZAÇÃO - CORRIGIDO
 // ========================================
 
 class GeolocationManager {
@@ -331,12 +331,12 @@ class GeolocationManager {
 }
 
 // ========================================
-// SISTEMA DE CARROSSEL PARA PLANOS - SIMPLIFICADO
+// SISTEMA DE CARROSSEL PARA PLANOS - CORRIGIDO
 // ========================================
 
 class CarrosselPlanos {
-    constructor() {
-        this.container = document.querySelector('.carrossel-planos-container');
+    constructor(containerSeletor = '.carrossel-planos-container') {
+        this.container = document.querySelector(containerSeletor);
         if (!this.container) return;
         
         this.carrossel = this.container.querySelector('.carrossel-planos');
@@ -347,6 +347,9 @@ class CarrosselPlanos {
         this.slides = Array.from(this.carrossel.children);
         this.totalSlides = this.slides.length;
         this.currentIndex = 0;
+        this.isDragging = false;
+        this.startX = 0;
+        this.currentX = 0;
         this.autoPlayInterval = null;
         
         this.init();
@@ -355,136 +358,170 @@ class CarrosselPlanos {
     init() {
         if (this.totalSlides === 0) return;
         
-        console.log(`🎯 Inicializando carrossel com ${this.totalSlides} slides`);
-        
-        this.criarIndicadores();
-        this.atualizarCarrossel();
-        this.adicionarEventos();
-        this.iniciarAutoPlay();
+        this.createIndicators();
+        this.updateCarrossel();
+        this.addEventListeners();
+        this.startAutoPlay();
     }
     
-    getSlidesPorView() {
-        const largura = window.innerWidth;
-        if (largura >= 992) return 3;
-        if (largura >= 768) return 2;
+    getSlidesPerView() {
+        if (window.innerWidth >= 992) return 3;
+        if (window.innerWidth >= 768) return 2;
         return 1;
     }
     
-    criarIndicadores() {
+    createIndicators() {
         this.indicadoresContainer.innerHTML = '';
-        const slidesPorView = this.getSlidesPorView();
-        const totalIndicadores = Math.ceil(this.totalSlides / slidesPorView);
+        const slidesPerView = this.getSlidesPerView();
+        const totalIndicators = Math.ceil(this.totalSlides / slidesPerView);
         
-        for (let i = 0; i < totalIndicadores; i++) {
-            const indicador = document.createElement('button');
-            indicador.className = `carrossel-indicador ${i === 0 ? 'ativo' : ''}`;
-            indicador.setAttribute('aria-label', `Ir para grupo ${i + 1}`);
-            indicador.addEventListener('click', () => this.irParaSlide(i * slidesPorView));
-            this.indicadoresContainer.appendChild(indicador);
+        for (let i = 0; i < totalIndicators; i++) {
+            const indicator = document.createElement('button');
+            indicator.className = `carrossel-indicador ${i === 0 ? 'ativo' : ''}`;
+            indicator.setAttribute('aria-label', `Ir para grupo de planos ${i + 1}`);
+            indicator.addEventListener('click', () => this.goToSlide(i * slidesPerView));
+            this.indicadoresContainer.appendChild(indicator);
         }
     }
     
-    atualizarCarrossel() {
-        const slidesPorView = this.getSlidesPorView();
-        const translateX = -(this.currentIndex * (100 / slidesPorView));
+    updateCarrossel() {
+        const slidesPerView = this.getSlidesPerView();
+        const translateX = -(this.currentIndex * (100 / slidesPerView));
         
         this.carrossel.style.transform = `translateX(${translateX}%)`;
         
-        // Atualizar indicadores
-        const indicadores = this.indicadoresContainer.children;
-        const indicadorAtivo = Math.floor(this.currentIndex / slidesPorView);
+        const indicators = this.indicadoresContainer.children;
+        const activeIndicator = Math.floor(this.currentIndex / slidesPerView);
         
-        for (let i = 0; i < indicadores.length; i++) {
-            indicadores[i].classList.toggle('ativo', i === indicadorAtivo);
+        for (let i = 0; i < indicators.length; i++) {
+            indicators[i].classList.toggle('ativo', i === activeIndicator);
         }
         
-        // Atualizar botões
-        const maxIndex = Math.max(0, this.totalSlides - slidesPorView);
+        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
         this.botaoAnterior.disabled = this.currentIndex === 0;
         this.botaoProximo.disabled = this.currentIndex >= maxIndex;
         
-        console.log(`📱 Slides por view: ${slidesPorView}, Índice atual: ${this.currentIndex}`);
+        this.carrossel.classList.add('animando');
+        setTimeout(() => {
+            this.carrossel.classList.remove('animando');
+        }, 500);
     }
     
-    irParaSlide(index) {
-        const slidesPorView = this.getSlidesPorView();
-        const maxIndex = Math.max(0, this.totalSlides - slidesPorView);
+    goToSlide(index) {
+        const slidesPerView = this.getSlidesPerView();
+        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
         this.currentIndex = Math.max(0, Math.min(index, maxIndex));
-        this.atualizarCarrossel();
-        this.reiniciarAutoPlay();
+        this.updateCarrossel();
+        this.resetAutoPlay();
     }
     
-    proximoSlide() {
-        const slidesPorView = this.getSlidesPorView();
-        const maxIndex = Math.max(0, this.totalSlides - slidesPorView);
+    nextSlide() {
+        const slidesPerView = this.getSlidesPerView();
+        const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
         
         if (this.currentIndex < maxIndex) {
             this.currentIndex++;
         } else {
             this.currentIndex = 0;
         }
-        this.atualizarCarrossel();
-        this.reiniciarAutoPlay();
+        this.updateCarrossel();
+        this.resetAutoPlay();
     }
     
-    slideAnterior() {
-        const slidesPorView = this.getSlidesPorView();
+    prevSlide() {
+        const slidesPerView = this.getSlidesPerView();
         if (this.currentIndex > 0) {
             this.currentIndex--;
         } else {
-            const maxIndex = Math.max(0, this.totalSlides - slidesPorView);
+            const maxIndex = Math.max(0, this.totalSlides - slidesPerView);
             this.currentIndex = maxIndex;
         }
-        this.atualizarCarrossel();
-        this.reiniciarAutoPlay();
+        this.updateCarrossel();
+        this.resetAutoPlay();
     }
     
-    adicionarEventos() {
+    addEventListeners() {
         if (this.botaoAnterior) {
-            this.botaoAnterior.addEventListener('click', () => this.slideAnterior());
+            this.botaoAnterior.addEventListener('click', () => this.prevSlide());
         }
-        
         if (this.botaoProximo) {
-            this.botaoProximo.addEventListener('click', () => this.proximoSlide());
+            this.botaoProximo.addEventListener('click', () => this.nextSlide());
         }
         
-        // Suporte a teclado
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                this.slideAnterior();
-            }
-            if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                this.proximoSlide();
-            }
-        });
+        this.addTouchEvents();
+        this.addKeyboardEvents();
         
-        // Redimensionamento da janela
         window.addEventListener('resize', () => this.handleResize());
     }
     
+    addTouchEvents() {
+        this.carrossel.addEventListener('touchstart', (e) => {
+            this.startX = e.touches[0].clientX;
+            this.isDragging = true;
+            this.carrossel.style.transition = 'none';
+        });
+        
+        this.carrossel.addEventListener('touchmove', (e) => {
+            if (!this.isDragging) return;
+            this.currentX = e.touches[0].clientX;
+            const diff = this.startX - this.currentX;
+            const slidesPerView = this.getSlidesPerView();
+            const translateX = -(this.currentIndex * (100 / slidesPerView)) - (diff / this.carrossel.offsetWidth) * 100;
+            this.carrossel.style.transform = `translateX(${translateX}%)`;
+        });
+        
+        this.carrossel.addEventListener('touchend', () => {
+            if (!this.isDragging) return;
+            this.isDragging = false;
+            this.carrossel.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            
+            const diff = this.startX - this.currentX;
+            const threshold = 50;
+            
+            if (diff > threshold) {
+                this.nextSlide();
+            } else if (diff < -threshold) {
+                this.prevSlide();
+            } else {
+                this.updateCarrossel();
+            }
+            
+            this.resetAutoPlay();
+        });
+    }
+    
+    addKeyboardEvents() {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                this.prevSlide();
+            }
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                this.nextSlide();
+            }
+        });
+    }
+    
     handleResize() {
-        this.criarIndicadores();
-        this.atualizarCarrossel();
+        this.createIndicators();
+        this.updateCarrossel();
     }
     
-    iniciarAutoPlay() {
-        if (this.totalSlides > 1) {
-            this.autoPlayInterval = setInterval(() => {
-                this.proximoSlide();
-            }, 5000); // 5 segundos
-        }
+    startAutoPlay() {
+        this.autoPlayInterval = setInterval(() => {
+            this.nextSlide();
+        }, 8000);
     }
     
-    reiniciarAutoPlay() {
+    resetAutoPlay() {
         if (this.autoPlayInterval) {
             clearInterval(this.autoPlayInterval);
-            this.iniciarAutoPlay();
+            this.startAutoPlay();
         }
     }
     
-    destruir() {
+    destroy() {
         if (this.autoPlayInterval) {
             clearInterval(this.autoPlayInterval);
         }
@@ -492,43 +529,22 @@ class CarrosselPlanos {
 }
 
 // ========================================
-// INICIALIZAÇÃO DO CARROSSEL
+// INICIALIZAÇÃO DO CARROSSEL - CORRIGIDA
 // ========================================
 
 function initPlanosCarousel() {
     const carrosselContainer = document.querySelector('.carrossel-planos-container');
     if (!carrosselContainer) {
-        console.log('ℹ️ Carrossel não encontrado nesta página');
+        console.log('❌ Container do carrossel não encontrado');
         return;
     }
     
     try {
         window.planosCarousel = new CarrosselPlanos();
-        console.log('✅ Carrossel de planos inicializado com sucesso!');
+        console.log('✅ Carrossel de planos inicializado');
     } catch (error) {
         console.error('❌ Erro ao inicializar carrossel:', error);
     }
-}
-
-// ========================================
-// SISTEMA DE HOVER PARA HERO SECTION
-// ========================================
-
-function initHeroHover() {
-    const heroContainer = document.querySelector('.hero-container');
-    const heroContent = document.querySelector('.hero-content');
-    
-    if (!heroContainer) return;
-    
-    heroContainer.addEventListener('mouseenter', function() {
-        this.classList.add('hero-hover-active');
-        if (heroContent) heroContent.style.opacity = '1';
-    });
-    
-    heroContainer.addEventListener('mouseleave', function() {
-        this.classList.remove('hero-hover-active');
-        if (heroContent) heroContent.style.opacity = '0.7';
-    });
 }
 
 // ========================================
@@ -566,60 +582,177 @@ function showNotification(message, type = 'info') {
 }
 
 // ========================================
-// SMOOTH SCROLL
+// FUNÇÕES DE INTERFACE PARA COOKIES
 // ========================================
 
-function smoothScroll(target, duration = 1000) {
-    const targetElement = document.querySelector(target);
-    if (!targetElement) return;
+function aceitarTodosCookies() {
+    if (window.cookieManager) {
+        window.cookieManager.acceptAll();
+    }
+}
+
+function aceitarCookiesEssenciais() {
+    if (window.cookieManager) {
+        window.cookieManager.acceptEssential();
+    }
+}
+
+function aceitarCookies() {
+    aceitarTodosCookies();
+}
+
+function configurarCookies() {
+    const modal = new bootstrap.Modal(document.getElementById('cookieSettingsModal'));
+    modal.show();
+}
+
+function salvarPreferenciasCookies() {
+    const analytics = document.getElementById('cookieAnalytics').checked;
+    const personalization = document.getElementById('cookiePersonalization').checked;
     
-    const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset;
-    const startPosition = window.pageYOffset;
-    const distance = targetPosition - startPosition;
-    let startTime = null;
-    
-    function animation(currentTime) {
-        if (startTime === null) startTime = currentTime;
-        const timeElapsed = currentTime - startTime;
-        const run = ease(timeElapsed, startPosition, distance, duration);
-        window.scrollTo(0, run);
-        if (timeElapsed < duration) requestAnimationFrame(animation);
+    if (window.cookieManager) {
+        window.cookieManager.customPreferences(analytics, personalization);
     }
     
-    function ease(t, b, c, d) {
-        t /= d / 2;
-        if (t < 1) return c / 2 * t * t + b;
-        t--;
-        return -c / 2 * (t * (t - 2) - 1) + b;
+    const modal = bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'));
+    if (modal) {
+        modal.hide();
     }
-    
-    requestAnimationFrame(animation);
 }
 
 // ========================================
-// LOADING STATES
+// FUNÇÕES DE INTERFACE PARA GEOLOCALIZAÇÃO
 // ========================================
 
-function setLoadingState(element, isLoading) {
-    if (isLoading) {
-        element.classList.add('loading');
-        element.disabled = true;
-        const originalText = element.innerHTML;
-        element.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Carregando...`;
-        element.setAttribute('data-original-text', originalText);
-    } else {
-        element.classList.remove('loading');
-        element.disabled = false;
-        const originalText = element.getAttribute('data-original-text');
-        if (originalText) {
-            element.innerHTML = originalText;
+async function obterLocalizacaoUsuario() {
+    try {
+        if (!window.geolocationManager) {
+            throw new Error('Gerenciador de geolocalização não inicializado');
         }
+        await window.geolocationManager.getLocation();
+    } catch (error) {
+        console.warn('Erro na geolocalização:', error);
+        solicitarLocalizacaoManual();
+    }
+}
+
+function solicitarLocalizacaoManual() {
+    const locationElement = document.getElementById('user-location');
+    if (locationElement) {
+        locationElement.innerHTML = `
+            <button class="btn btn-sm btn-outline-light" onclick="obterLocalizacaoUsuario()">
+                <i class="bi bi-geo-alt"></i> Ativar Localização
+            </button>
+        `;
     }
 }
 
 // ========================================
-// FORM VALIDATION
+// INICIALIZAÇÃO CORRIGIDA E SEGURA
 // ========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 NetFyber - Inicializando sistema...');
+    
+    try {
+        initEssentialSystems();
+        initPageSpecificComponents();
+        console.log('✅ NetFyber - Sistema inicializado com sucesso!');
+    } catch (error) {
+        console.error('❌ Erro na inicialização:', error);
+        showNotification('Erro na inicialização do sistema. Recarregue a página.', 'danger');
+    }
+});
+
+function initEssentialSystems() {
+    if (typeof CookieManager !== 'undefined') {
+        window.cookieManager = new CookieManager();
+    }
+    
+    if (typeof GeolocationManager !== 'undefined') {
+        window.geolocationManager = new GeolocationManager();
+    }
+    
+    initSmoothScroll();
+    initBootstrapTooltips();
+    initScrollAnimations();
+}
+
+function initPageSpecificComponents() {
+    const path = window.location.pathname;
+    
+    if (path.includes('/planos') || path === '/') {
+        initPlanosCarousel();
+    }
+    
+    if (path.includes('/blog')) {
+        initBlogFilters();
+    }
+    
+    initFormValidations();
+}
+
+function initSmoothScroll() {
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            const href = this.getAttribute('href');
+            if (href !== '#' && href !== '') {
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            }
+        });
+    });
+}
+
+function initBootstrapTooltips() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+}
+
+function initScrollAnimations() {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('fade-in-up');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { 
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    });
+    
+    const elementsToAnimate = document.querySelectorAll('.feature-card, .plan-card, .blog-post-item, .guia-card');
+    elementsToAnimate.forEach(el => {
+        observer.observe(el);
+    });
+}
+
+function initFormValidations() {
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (!validateForm(this)) {
+                e.preventDefault();
+                const firstInvalid = this.querySelector('.is-invalid');
+                if (firstInvalid) {
+                    firstInvalid.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                    firstInvalid.focus();
+                }
+            }
+        });
+    });
+}
 
 function validateForm(form) {
     const inputs = form.querySelectorAll('input[required], textarea[required], select[required]');
@@ -649,7 +782,7 @@ function validateForm(form) {
 }
 
 // ========================================
-// BLOG FILTERS
+// BLOG FILTERS - CORRIGIDO
 // ========================================
 
 function initBlogFilters() {
@@ -748,202 +881,13 @@ function initBlogFilters() {
 }
 
 // ========================================
-// SCROLL ANIMATIONS
-// ========================================
-
-function initScrollAnimations() {
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('fade-in-up');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { 
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    });
-    
-    const elementsToAnimate = document.querySelectorAll('.feature-card, .plan-card, .blog-post-item, .guia-card');
-    elementsToAnimate.forEach(el => {
-        observer.observe(el);
-    });
-}
-
-// ========================================
-// DEBOUNCE UTILITY
-// ========================================
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// ========================================
-// FUNÇÕES DE INTERFACE PARA COOKIES
-// ========================================
-
-function aceitarTodosCookies() {
-    if (window.cookieManager) {
-        window.cookieManager.acceptAll();
-    }
-}
-
-function aceitarCookiesEssenciais() {
-    if (window.cookieManager) {
-        window.cookieManager.acceptEssential();
-    }
-}
-
-function aceitarCookies() {
-    aceitarTodosCookies();
-}
-
-function configurarCookies() {
-    const modal = new bootstrap.Modal(document.getElementById('cookieSettingsModal'));
-    modal.show();
-}
-
-function salvarPreferenciasCookies() {
-    const analytics = document.getElementById('cookieAnalytics').checked;
-    const personalization = document.getElementById('cookiePersonalization').checked;
-    
-    if (window.cookieManager) {
-        window.cookieManager.customPreferences(analytics, personalization);
-    }
-    
-    const modal = bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'));
-    if (modal) {
-        modal.hide();
-    }
-}
-
-// ========================================
-// FUNÇÕES DE INTERFACE PARA GEOLOCALIZAÇÃO
-// ========================================
-
-async function obterLocalizacaoUsuario() {
-    try {
-        if (!window.geolocationManager) {
-            throw new Error('Gerenciador de geolocalização não inicializado');
-        }
-        await window.geolocationManager.getLocation();
-    } catch (error) {
-        console.warn('Erro na geolocalização:', error);
-        solicitarLocalizacaoManual();
-    }
-}
-
-function solicitarLocalizacaoManual() {
-    const locationElement = document.getElementById('user-location');
-    if (locationElement) {
-        locationElement.innerHTML = `
-            <button class="btn btn-sm btn-outline-light" onclick="obterLocalizacaoUsuario()">
-                <i class="bi bi-geo-alt"></i> Ativar Localização
-            </button>
-        `;
-    }
-}
-
-// ========================================
-// INICIALIZAÇÃO CORRIGIDA
-// ========================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 NetFyber - Inicializando sistema...');
-    
-    try {
-        initEssentialSystems();
-        initPageSpecificComponents();
-        console.log('✅ NetFyber - Sistema inicializado com sucesso!');
-    } catch (error) {
-        console.error('❌ Erro na inicialização:', error);
-        showNotification('Erro na inicialização do sistema. Recarregue a página.', 'danger');
-    }
-});
-
-function initEssentialSystems() {
-    // Sistema de Cookies
-    if (typeof CookieManager !== 'undefined') {
-        window.cookieManager = new CookieManager();
-    }
-    
-    // Sistema de Geolocalização
-    if (typeof GeolocationManager !== 'undefined') {
-        window.geolocationManager = new GeolocationManager();
-    }
-    
-    // Tooltips do Bootstrap
-    initBootstrapTooltips();
-    
-    // Animações de scroll
-    initScrollAnimations();
-}
-
-function initPageSpecificComponents() {
-    const path = window.location.pathname;
-    
-    // Inicializar carrossel na página de planos
-    if (path.includes('/planos')) {
-        console.log('📋 Página de planos detectada');
-        initPlanosCarousel();
-    }
-    
-    // Inicializar filtros do blog
-    if (path.includes('/blog')) {
-        initBlogFilters();
-    }
-    
-    // Inicializar hover do hero na página inicial
-    if (path === '/') {
-        initHeroHover();
-    }
-    
-    // Validações de formulário
-    initFormValidations();
-}
-
-function initBootstrapTooltips() {
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-}
-
-function initFormValidations() {
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            if (!validateForm(this)) {
-                e.preventDefault();
-                const primeiroInvalido = this.querySelector('.is-invalid');
-                if (primeiroInvalido) {
-                    primeiroInvalido.scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'center' 
-                    });
-                    primeiroInvalido.focus();
-                }
-            }
-        });
-    });
-}
-
-// ========================================
-// FUNÇÕES DE UTILIDADE GLOBAIS
+// GLOBAL UTILITIES
 // ========================================
 
 window.NetFyberUtils = {
     showNotification,
-    smoothScroll,
     validateForm,
-    setLoadingState,
+    initBlogFilters,
     initPlanosCarousel,
     CarrosselPlanos,
     CookieManager,

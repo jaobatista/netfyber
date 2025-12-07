@@ -1,14 +1,9 @@
 services:
   - type: web
-    name: netfyber-telecom
+    name: netfyber
     env: python
-    pythonVersion: "3.12.10"
-    buildCommand: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      mkdir -p static/uploads/blog
-      mkdir -p static/images/blog
-    startCommand: gunicorn app:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -16,19 +11,13 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
+      - key: ADMIN_URL_PREFIX
+        value: /gestao-exclusiva-netfyber
+      - key: ADMIN_IPS
+        value: 0.0.0.0  # Altere para o seu IP se necessário
       - key: ADMIN_USERNAME
         value: netfyber_admin
       - key: ADMIN_EMAIL
         value: admin@netfyber.com
       - key: ADMIN_PASSWORD
         generateValue: true
-      - key: ADMIN_URL_PREFIX
-        value: gestao-exclusiva-netfyber
-      - key: FLASK_ENV
-        value: production
-    healthCheckPath: /health
-    autoDeploy: true
-
-databases:
-  - name: netfyber-db
-    plan: free
