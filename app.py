@@ -1,4 +1,4 @@
-import os
+import os  # <--- ESTAVA FALTANDO ESTA IMPORTAÇÃO
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
