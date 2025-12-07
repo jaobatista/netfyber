@@ -1,7 +1,6 @@
 import os
-import re
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -34,16 +33,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 
-# CONFIGURAÇÕES DE SEGURANÇA PARA COOKIES
-app.config.update(
-    SESSION_COOKIE_SECURE=True,  # Cookies só via HTTPS
-    SESSION_COOKIE_HTTPONLY=True,  # Não acessível via JavaScript
-    SESSION_COOKIE_SAMESITE='Lax',  # Proteção contra CSRF
-    REMEMBER_COOKIE_SECURE=True,
-    REMEMBER_COOKIE_HTTPONLY=True,
-    REMEMBER_COOKIE_SAMESITE='Lax'
-)
-
 # Configuração de upload
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads', 'blog')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # 8MB
@@ -63,155 +52,13 @@ login_manager.login_message = "Por favor, faça login para acessar esta página.
 login_manager.login_message_category = "warning"
 login_manager.session_protection = "strong"
 
-# ========================================
-# FUNÇÕES DE FORMATAÇÃO E SANITIZAÇÃO
-# ========================================
-
-def formatar_texto_para_html(texto):
-    """Converte formatação Markdown/HTML misto para HTML seguro"""
-    if not texto:
-        return ""
-    
-    try:
-        # 1. Processar negrito: **texto** -> <strong>texto</strong>
-        texto = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', texto, flags=re.DOTALL)
-        
-        # 2. Processar itálico: *texto* -> <em>texto</em>
-        texto = re.sub(r'\*(.+?)\*', r'<em>\1</em>', texto, flags=re.DOTALL)
-        
-        # 3. Separar em parágrafos (duas quebras de linha)
-        paragrafos = []
-        for bloco in texto.split('\n\n'):
-            bloco = bloco.strip()
-            if not bloco:
-                continue
-            
-            # 4. Substituir quebras de linha simples por <br>
-            linhas = bloco.split('\n')
-            conteudo_formatado = []
-            
-            for i, linha in enumerate(linhas):
-                linha = linha.strip()
-                if linha:
-                    # Processar listas simples com - ou *
-                    if linha.startswith('- ') or linha.startswith('* '):
-                        linha = linha[2:]  # Remove o marcador
-                        conteudo_formatado.append(f'<li>{linha}</li>')
-                    else:
-                        conteudo_formatado.append(linha)
-            
-            conteudo = '<br>'.join(conteudo_formatado)
-            
-            # Se contém <li>, envolver em <ul>
-            if '<li>' in conteudo:
-                conteudo = f'<ul>{conteudo}</ul>'
-            
-            # Adicionar parágrafo se não for uma lista
-            if '<ul>' not in conteudo and '<li>' not in conteudo:
-                paragrafos.append(f'<p>{conteudo}</p>')
-            else:
-                paragrafos.append(conteudo)
-        
-        texto_html = ''.join(paragrafos)
-        
-        # 5. Processar links HTML existentes: <a href="url">texto</a>
-        def processar_link(match):
-            url = match.group(1)
-            texto_link = match.group(2)
-            return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{texto_link}</a>'
-        
-        texto_html = re.sub(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', processar_link, texto_html)
-        
-        # 6. Sanitizar HTML final (remover qualquer coisa perigosa)
-        allowed_tags = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a', 'ul', 'ol', 'li']
-        allowed_attributes = {
-            'a': ['href', 'target', 'rel', 'title'],
-            '*': ['class', 'style']
-        }
-        
-        # Primeiro, limpar com bleach
-        texto_sanitizado = bleach.clean(
-            texto_html,
-            tags=allowed_tags,
-            attributes=allowed_attributes,
-            strip=True,
-            strip_comments=True
-        )
-        
-        # Adicionar linkify para URLs não marcadas
-        texto_sanitizado = bleach.linkify(texto_sanitizado, callbacks=[
-            lambda attrs, new: adicionar_noopener(attrs, new)
-        ])
-        
-        return texto_sanitizado
-        
-    except Exception as e:
-        print(f"Erro na formatação de texto: {e}")
-        return sanitizar_texto_simples(texto)
-
-def sanitizar_texto_simples(texto):
-    """Sanitização segura para texto simples"""
-    if not texto:
-        return ""
-    
-    # Tags permitidas básicas
-    allowed_tags = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a']
-    allowed_attributes = {
-        'a': ['href', 'target', 'rel']
-    }
-    
-    sanitized = bleach.clean(
-        texto,
-        tags=allowed_tags,
-        attributes=allowed_attributes,
-        strip=True,
-        strip_comments=True
-    )
-    
-    # Adicionar linkify e noopener
-    sanitized = bleach.linkify(sanitized, callbacks=[
-        lambda attrs, new: adicionar_noopener(attrs, new)
-    ])
-    
-    return sanitized
-
-def adicionar_noopener(attrs, new):
-    """Adiciona noopener e noreferrer a links externos"""
-    href_key = (None, 'href')
-    if href_key in attrs:
-        href = attrs[href_key]
-        if href.startswith(('http://', 'https://', '//')):
-            rel_key = (None, 'rel')
-            if rel_key in attrs:
-                if 'noopener' not in attrs[rel_key]:
-                    attrs[rel_key] = attrs[rel_key] + ' noopener noreferrer'
-            else:
-                attrs[rel_key] = 'noopener noreferrer'
-            attrs[(None, 'target')] = '_blank'
-    return attrs
-
-# ========================================
-# MIDDLEWARE DE SEGURANÇA E COOKIES
-# ========================================
-
+# Headers de segurança manuais
 @app.after_request
 def set_security_headers(response):
-    """Configura headers de segurança e cookies"""
-    # Headers de segurança
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
-    
-    # Cookies seguros
-    if 'session' in response.headers.get('Set-Cookie', ''):
-        response.headers.add('Set-Cookie', 
-            'session=; Secure; HttpOnly; SameSite=Lax; Path=/')
-    if 'remember_token' in response.headers.get('Set-Cookie', ''):
-        response.headers.add('Set-Cookie',
-            'remember_token=; Secure; HttpOnly; SameSite=Lax; Path=/')
-    
     return response
 
 # ========================================
@@ -228,6 +75,44 @@ def validate_filename(filename):
         return False
     
     return True
+
+def sanitize_html(content):
+    """Sanitização segura de HTML"""
+    if not content:
+        return ""
+    
+    allowed_tags = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a', 'ul', 'ol', 'li']
+    allowed_attributes = {
+        'a': ['href', 'target', 'rel']
+    }
+    
+    sanitized = bleach.clean(
+        content,
+        tags=allowed_tags,
+        attributes=allowed_attributes,
+        strip=True,
+        strip_comments=True
+    )
+    
+    sanitized = bleach.linkify(sanitized, callbacks=[
+        lambda attrs, new: add_noopener(attrs, new)
+    ])
+    
+    return sanitized
+
+def add_noopener(attrs, new):
+    """Adiciona noopener a links externos"""
+    href_key = (None, 'href')
+    if href_key in attrs:
+        href = attrs[href_key]
+        if href.startswith(('http://', 'https://')):
+            rel_key = (None, 'rel')
+            if rel_key in attrs:
+                attrs[rel_key] = attrs[rel_key] + ' noopener'
+            else:
+                attrs[rel_key] = 'noopener'
+            attrs[(None, 'target')] = '_blank'
+    return attrs
 
 def validate_url(url):
     """Validação segura de URLs"""
@@ -324,14 +209,13 @@ class Post(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def get_conteudo_html(self):
-        """Retorna o conteúdo formatado em HTML seguro"""
+        """Retorna o conteúdo sanitizado em HTML seguro"""
         try:
             if not self.conteudo:
                 return "<p>Conteúdo não disponível.</p>"
-            return formatar_texto_para_html(self.conteudo)
+            return sanitize_html(self.conteudo)
         except Exception as e:
-            print(f"Erro ao formatar conteúdo do post: {e}")
-            return sanitizar_texto_simples(self.conteudo)
+            return "<p>Erro ao carregar conteúdo.</p>"
 
     def get_data_formatada(self):
         try:
@@ -516,12 +400,7 @@ def admin_logout():
     print(f"Logout do usuário: {current_user.username}")
     logout_user()
     flash('Você saiu da sua conta.', 'info')
-    
-    # Criar resposta para limpar cookies
-    resp = make_response(redirect(url_for('admin_login')))
-    resp.delete_cookie('session')
-    resp.delete_cookie('remember_token')
-    return resp
+    return redirect(url_for('admin_login'))
 
 # ========================================
 # ROTAS ADMINISTRATIVAS - BLOG
@@ -539,7 +418,7 @@ def adicionar_post():
     if request.method == 'POST':
         try:
             titulo = bleach.clean(request.form.get('titulo', '').strip())
-            conteudo = request.form.get('conteudo', '').strip()  # Mantém formatação original
+            conteudo = request.form.get('conteudo', '').strip()
             categoria = bleach.clean(request.form.get('categoria', ''))
             link_materia = request.form.get('link_materia', '').strip()
             data_publicacao_str = request.form.get('data_publicacao', '')
@@ -569,14 +448,11 @@ def adicionar_post():
                 data_publicacao = datetime.utcnow()
                 flash('Data inválida. Usando data atual.', 'warning')
             
-            # Resumo simples (sem formatação HTML)
-            texto_plano = re.sub(r'<[^>]+>', '', conteudo)  # Remove tags HTML
-            texto_plano = re.sub(r'\*\*|\*', '', texto_plano)  # Remove marcações Markdown
-            resumo = texto_plano[:150] + '...' if len(texto_plano) > 150 else texto_plano
+            resumo = bleach.clean(conteudo[:150] + '...' if len(conteudo) > 150 else conteudo)
             
             novo_post = Post(
                 titulo=titulo,
-                conteudo=conteudo,  # Salva com formatação original
+                conteudo=conteudo,
                 resumo=resumo,
                 categoria=categoria,
                 imagem=imagem_filename,
@@ -623,14 +499,10 @@ def editar_post(post_id):
                 flash('Data inválida. Mantendo data original.', 'warning')
             
             conteudo = request.form.get('conteudo', '').strip()
-            
-            # Resumo simples (sem formatação HTML)
-            texto_plano = re.sub(r'<[^>]+>', '', conteudo)  # Remove tags HTML
-            texto_plano = re.sub(r'\*\*|\*', '', texto_plano)  # Remove marcações Markdown
-            resumo = texto_plano[:150] + '...' if len(texto_plano) > 150 else texto_plano
+            resumo = conteudo[:150] + '...' if len(conteudo) > 150 else conteudo
             
             post.titulo = bleach.clean(request.form.get('titulo', '').strip())
-            post.conteudo = conteudo  # Mantém formatação original
+            post.conteudo = conteudo
             post.resumo = resumo
             post.categoria = bleach.clean(request.form.get('categoria', ''))
             post.link_materia = request.form.get('link_materia', '').strip()
@@ -810,7 +682,7 @@ def api_blog_posts():
                 'imagem': post.get_imagem_url(),
                 'link_materia': post.link_materia,
                 'data_publicacao': post.get_data_formatada(),
-                'conteudo': post.get_conteudo_html()
+                'conteudo': post.conteudo
             })
         return jsonify(posts_list)
     except Exception as e:
