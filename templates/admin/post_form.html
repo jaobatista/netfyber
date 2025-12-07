@@ -74,6 +74,11 @@
         .btn-format:hover {
             background: #e9ecef;
         }
+        
+        .preview-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body class="bg-light" style="min-height: 100vh;">
@@ -269,10 +274,18 @@
                                     <i class="bi bi-eye"></i> Prévia do Conteúdo Formatado
                                 </h6>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body preview-container">
                                 <div class="live-preview" id="previewContent">
-                                    {% if post and post.conteudo_html %}
-                                        {{ post.conteudo_html|safe }}
+                                    {% if post and post.conteudo %}
+                                        <div id="processedContent"></div>
+                                        <script>
+                                            // Processar conteúdo existente na inicialização
+                                            document.addEventListener('DOMContentLoaded', function() {
+                                                const conteudo = `{{ post.conteudo|safe }}`;
+                                                document.getElementById('conteudo').value = conteudo;
+                                                updatePreview();
+                                            });
+                                        </script>
                                     {% else %}
                                         <p class="text-muted">Digite algo acima para ver a prévia...</p>
                                     {% endif %}
@@ -303,7 +316,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Funções de formatação - SIMPLIFICADAS
+        // Funções de formatação
         function formatText(type) {
             const textarea = document.getElementById('conteudo');
             const start = textarea.selectionStart;
@@ -324,9 +337,7 @@
                     if (url) {
                         const text = prompt('Texto do link:', selectedText || 'Clique aqui');
                         if (text) {
-                            const extraAttrs = url.startsWith('http') ? 
-                                ' target="_blank" rel="noopener noreferrer"' : '';
-                            formattedText = `<a href="${url}"${extraAttrs}>${text}</a>`;
+                            formattedText = `<a href="${url}">${text}</a>`;
                         }
                     } else {
                         return;
@@ -352,80 +363,88 @@
             }
         }
         
-        // Atualizar preview - SIMPLIFICADA E ALINHADA COM O BACKEND
+        // Atualizar preview - SIMPLIFICADO E FUNCIONAL
         function updatePreview() {
-    const content = document.getElementById('conteudo').value;
-    const preview = document.getElementById('previewContent');
-    
-    if (!content.trim()) {
-        preview.innerHTML = '<p class="text-muted">Digite algo para ver a prévia...</p>';
-        return;
-    }
-    
-    preview.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Processando...</p>';
-    
-    // Processamento ALINHADO com o back-end
-    let html = content;
-    const lines = html.split('\n');
-    let processedLines = [];
-    let inList = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        
-        // Item de lista
-        if (line.startsWith('- ') || line.startsWith('* ')) {
-            if (!inList) {
-                processedLines.push('<ul>');
-                inList = true;
-            }
-            let itemContent = line.substring(2).trim();
-            // Processar negrito dentro do item
-            itemContent = itemContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            processedLines.push(`<li>${itemContent}</li>`);
-        } else {
-            // Fechar lista se estava aberta
-            if (inList) {
-                processedLines.push('</ul>');
-                inList = false;
+            const content = document.getElementById('conteudo').value;
+            const preview = document.getElementById('previewContent');
+            
+            if (!content.trim()) {
+                preview.innerHTML = '<p class="text-muted">Digite algo para ver a prévia...</p>';
+                return;
             }
             
-            if (line) {
-                // Título
-                if (line.startsWith('## ')) {
-                    let title = line.substring(3).trim();
-                    processedLines.push(`<h4>${title}</h4>`);
-                } else {
-                    // Negrito
-                    line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                    processedLines.push(line + '<br>');
+            preview.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Processando...</p>';
+            
+            // Simular processamento do backend
+            setTimeout(() => {
+                let html = content;
+                
+                // Processar negrito
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // Processar itálico
+                html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                
+                // Processar títulos
+                html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+                html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+                html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+                
+                // Processar listas
+                const lines = html.split('\n');
+                let processedLines = [];
+                let inList = false;
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    
+                    if (line.startsWith('- ') || line.startsWith('* ')) {
+                        if (!inList) {
+                            processedLines.push('<ul>');
+                            inList = true;
+                        }
+                        let itemContent = line.substring(2).trim();
+                        // Já processamos negrito, então não precisa processar novamente
+                        processedLines.push(`<li>${itemContent}</li>`);
+                    } else {
+                        if (inList) {
+                            processedLines.push('</ul>');
+                            inList = false;
+                        }
+                        
+                        if (line) {
+                            // Verificar se já é um título
+                            if (!line.startsWith('<h')) {
+                                // Adicionar <br> ao final se não for tag HTML
+                                if (!line.startsWith('<')) {
+                                    line = line + '<br>';
+                                }
+                            }
+                            processedLines.push(line);
+                        } else {
+                            processedLines.push('<br>');
+                        }
+                    }
                 }
-            } else {
-                // Linha vazia = quebra de parágrafo
-                processedLines.push('<br>');
-            }
+                
+                if (inList) {
+                    processedLines.push('</ul>');
+                }
+                
+                html = processedLines.join('\n');
+                
+                // Processar links HTML para adicionar target="_blank"
+                html = html.replace(/<a href="(.*?)">(.*?)<\/a>/g, function(match, url, text) {
+                    if (url.startsWith('http')) {
+                        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+                    }
+                    return match;
+                });
+                
+                // Exibir resultado
+                preview.innerHTML = html;
+            }, 100);
         }
-    }
-    
-    // Fechar lista se ainda aberta
-    if (inList) {
-        processedLines.push('</ul>');
-    }
-    
-    // Juntar tudo
-    html = processedLines.join('\n');
-    
-    // Processar links HTML
-    html = html.replace(/<a href="(.*?)">(.*?)<\/a>/g, (match, url, text) => {
-        if (url.startsWith('http')) {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-        }
-        return match;
-    });
-    
-    // Exibir resultado
-    preview.innerHTML = html;
-}
         
         // Preview de imagem
         document.getElementById('imagem').addEventListener('change', function(e) {
@@ -482,15 +501,17 @@
         
         // Inicializar
         document.addEventListener('DOMContentLoaded', function() {
-            if (document.getElementById('conteudo').value.trim()) {
+            // Se houver conteúdo, atualizar preview
+            const conteudo = document.getElementById('conteudo').value;
+            if (conteudo.trim()) {
                 updatePreview();
             }
             
-            // Atualizar preview ao digitar
+            // Atualizar preview ao digitar (com debounce)
             let previewTimeout;
             document.getElementById('conteudo').addEventListener('input', function() {
                 clearTimeout(previewTimeout);
-                previewTimeout = setTimeout(updatePreview, 300);
+                previewTimeout = setTimeout(updatePreview, 500);
             });
         });
     </script>

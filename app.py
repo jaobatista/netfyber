@@ -83,89 +83,34 @@ def sanitize_html(content):
     if not content:
         return ""
     
+    # Processar markdown primeiro
+    html_content = process_markdown(content)
+    
     # Tags permitidas
     allowed_tags = [
         'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a',
-        'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 
-        'blockquote', 'img', 'span', 'div'
+        'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'blockquote', 'img', 'span', 'div', 'table', 'tr', 'td', 'th'
     ]
     
     # Atributos permitidos
     allowed_attributes = {
-        'a': ['href', 'target', 'rel', 'title'],
-        'img': ['src', 'alt', 'title', 'width', 'height', 'style'],
+        'a': ['href', 'target', 'rel', 'title', 'class'],
+        'img': ['src', 'alt', 'title', 'width', 'height', 'class', 'style'],
         '*': ['class', 'id', 'style']
     }
     
-    # Configurar o cleaner
-    cleaner = Cleaner(
+    # Sanitizar
+    sanitized = bleach.clean(
+        html_content,
         tags=allowed_tags,
         attributes=allowed_attributes,
-        styles=['color', 'background-color', 'font-size', 'text-align'],
         strip=True,
-        strip_comments=True,
-        filters=[]
+        strip_comments=True
     )
     
-    # Processar conteúdo markdown-like
-    content = process_markdown(content)
-    
-    # Sanitizar
-    sanitized = cleaner.clean(content)
-    
-    # Adicionar noopener a links externos
-    sanitized = add_link_attributes(sanitized)
-    
-    return sanitized
-
-def process_markdown(content):
-    """Processa formatação estilo markdown"""
-    # Negrito: **texto** -> <strong>texto</strong>
-    content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', content, flags=re.DOTALL)
-    
-    # Itálico: *texto* -> <em>texto</em>
-    content = re.sub(r'\*(.*?)\*', r'<em>\1</em>', content, flags=re.DOTALL)
-    
-    # Títulos: ## Título -> <h2>Título</h2>
-    content = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
-    content = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
-    content = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', content, flags=re.MULTILINE)
-    
-    # Listas: - item -> <li>item</li>
-    lines = content.split('\n')
-    in_list = False
-    processed_lines = []
-    
-    for line in lines:
-        if line.strip().startswith('- '):
-            if not in_list:
-                processed_lines.append('<ul>')
-                in_list = True
-            processed_lines.append(f'<li>{line[2:].strip()}</li>')
-        else:
-            if in_list:
-                processed_lines.append('</ul>')
-                in_list = False
-            if line.strip():
-                # Se não for tag HTML, envolver em parágrafo
-                if not re.match(r'^<[^>]+>', line.strip()):
-                    processed_lines.append(f'<p>{line}</p>')
-                else:
-                    processed_lines.append(line)
-    
-    if in_list:
-        processed_lines.append('</ul>')
-    
-    content = '\n'.join(processed_lines)
-    
-    # Converter quebras de linha para <br>
-    content = content.replace('\n', '<br>')
-    
-    return content
-
-def add_link_attributes(sanitized_html):
-    """Adiciona atributos de segurança a links"""
-    def add_attrs(attrs, new=False):
+    # Garantir que links externos tenham target="_blank" e rel="noopener noreferrer"
+    def add_link_attributes(attrs, new):
         href = attrs.get((None, 'href'), '')
         if href and href.startswith(('http://', 'https://')):
             attrs[(None, 'target')] = '_blank'
@@ -175,9 +120,67 @@ def add_link_attributes(sanitized_html):
                 attrs[(None, 'rel')] = 'noopener noreferrer'
         return attrs
     
-    return bleach.linkify(sanitized_html, callbacks=[add_attrs])
+    # Aplicar atributos de segurança aos links
+    sanitized = bleach.linkify(sanitized, callbacks=[add_link_attributes])
+    
+    return sanitized
 
-# ... resto do código do app.py permanece igual ...
+def process_markdown(content):
+    """Processa formatação estilo markdown de forma robusta"""
+    if not content:
+        return ""
+    
+    lines = content.split('\n')
+    processed_lines = []
+    in_list = False
+    
+    for i, line in enumerate(lines):
+        line = line.rstrip()
+        
+        # Linha vazia
+        if not line:
+            if in_list:
+                processed_lines.append('</ul>')
+                in_list = False
+            processed_lines.append('<br>')
+            continue
+        
+        # Processar listas
+        if line.strip().startswith('- ') or line.strip().startswith('* '):
+            if not in_list:
+                processed_lines.append('<ul>')
+                in_list = True
+            list_item = line.strip()[2:].strip()
+            # Processar negrito dentro do item da lista
+            list_item = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', list_item)
+            processed_lines.append(f'<li>{list_item}</li>')
+            continue
+        else:
+            if in_list:
+                processed_lines.append('</ul>')
+                in_list = False
+        
+        # Processar títulos
+        if line.strip().startswith('### '):
+            title = line.strip()[4:].strip()
+            processed_lines.append(f'<h3>{title}</h3>')
+        elif line.strip().startswith('## '):
+            title = line.strip()[3:].strip()
+            processed_lines.append(f'<h2>{title}</h2>')
+        elif line.strip().startswith('# '):
+            title = line.strip()[2:].strip()
+            processed_lines.append(f'<h1>{title}</h1>')
+        else:
+            # Processar negrito
+            line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+            # Adicionar a linha
+            processed_lines.append(line + '<br>')
+    
+    # Fechar lista se ainda aberta
+    if in_list:
+        processed_lines.append('</ul>')
+    
+    return '\n'.join(processed_lines)
 
 def add_noopener(attrs, new):
     """Adiciona noopener a links externos"""
@@ -292,9 +295,29 @@ class Post(db.Model):
         try:
             if not self.conteudo:
                 return "<p>Conteúdo não disponível.</p>"
-            return sanitize_html(self.conteudo)
+            
+            # Usar sanitização completa
+            html = sanitize_html(self.conteudo)
+            
+            # Garantir que links tenham os atributos de segurança
+            def add_security_to_links(html_text):
+                # Para links já existentes
+                def add_attrs_to_existing_links(match):
+                    full_tag = match.group(0)
+                    if 'href="http' in full_tag and 'target="_blank"' not in full_tag:
+                        full_tag = full_tag.replace('<a ', '<a target="_blank" rel="noopener noreferrer" ')
+                    return full_tag
+                
+                html_text = re.sub(r'<a\s+[^>]*>', add_attrs_to_existing_links, html_text)
+                return html_text
+            
+            html = add_security_to_links(html)
+            return html
+            
         except Exception as e:
-            return "<p>Erro ao carregar conteúdo.</p>"
+            print(f"Erro ao processar conteúdo do post {self.id}: {e}")
+            # Fallback: retornar conteúdo bruto com escape
+            return f"<div style='white-space: pre-line;'>{bleach.clean(self.conteudo or '')}</div>"
 
     def get_data_formatada(self):
         try:
@@ -496,13 +519,19 @@ def admin_blog():
 def adicionar_post():
     if request.method == 'POST':
         try:
-            titulo = bleach.clean(request.form.get('titulo', '').strip())
-            conteudo = request.form.get('conteudo', '').strip()
-            categoria = bleach.clean(request.form.get('categoria', ''))
+            # DEBUG: Logar os dados recebidos
+            print(f"DEBUG - Processando novo post...")
+            print(f"DEBUG - Título: {request.form.get('titulo', '')[:50]}...")
+            print(f"DEBUG - Tamanho do conteúdo: {len(request.form.get('conteudo', ''))} caracteres")
+            
+            titulo = request.form.get('titulo', '').strip()
+            conteudo_bruto = request.form.get('conteudo', '').strip()
+            categoria = request.form.get('categoria', '')
             link_materia = request.form.get('link_materia', '').strip()
             data_publicacao_str = request.form.get('data_publicacao', '')
             
-            if not all([titulo, conteudo, categoria, link_materia]):
+            # Validações básicas
+            if not all([titulo, conteudo_bruto, categoria, link_materia]):
                 flash('Todos os campos obrigatórios devem ser preenchidos.', 'error')
                 return redirect(request.url)
             
@@ -510,6 +539,7 @@ def adicionar_post():
                 flash('URL da matéria inválida.', 'error')
                 return redirect(request.url)
             
+            # Processar imagem
             imagem_filename = 'default.jpg'
             if 'imagem' in request.files:
                 file = request.files['imagem']
@@ -518,22 +548,26 @@ def adicionar_post():
                     if uploaded_filename:
                         imagem_filename = uploaded_filename
                     else:
-                        flash('Arquivo de imagem inválido.', 'error')
-                        return redirect(request.url)
+                        flash('Arquivo de imagem inválido. Usando imagem padrão.', 'warning')
             
+            # Processar data
             try:
                 data_publicacao = datetime.strptime(data_publicacao_str, '%d/%m/%Y')
             except ValueError:
                 data_publicacao = datetime.utcnow()
                 flash('Data inválida. Usando data atual.', 'warning')
             
-            resumo = bleach.clean(conteudo[:150] + '...' if len(conteudo) > 150 else conteudo)
+            # Criar resumo (usar texto limpo sem tags HTML)
+            conteudo_limpo = re.sub(r'<[^>]+>', '', conteudo_bruto)
+            conteudo_limpo = re.sub(r'\*\*.*?\*\*', '', conteudo_limpo)
+            resumo = conteudo_limpo[:150] + '...' if len(conteudo_limpo) > 150 else conteudo_limpo
             
+            # Criar novo post
             novo_post = Post(
-                titulo=titulo,
-                conteudo=conteudo,
-                resumo=resumo,
-                categoria=categoria,
+                titulo=bleach.clean(titulo),
+                conteudo=conteudo_bruto,  # Salvar o conteúdo bruto
+                resumo=bleach.clean(resumo),
+                categoria=bleach.clean(categoria),
                 imagem=imagem_filename,
                 link_materia=link_materia,
                 data_publicacao=data_publicacao
@@ -542,14 +576,16 @@ def adicionar_post():
             db.session.add(novo_post)
             db.session.commit()
             
-            print(f"Novo post criado por {current_user.username}: {titulo}")
+            print(f"DEBUG - Post salvo com ID {novo_post.id}, título: {novo_post.titulo}")
             flash(f'Post "{novo_post.titulo}" adicionado com sucesso!', 'success')
             return redirect(url_for('admin_blog'))
             
         except Exception as e:
             db.session.rollback()
-            print(f"Erro ao adicionar post: {e}")
-            flash('Erro ao adicionar post.', 'error')
+            print(f"ERRO CRÍTICO ao adicionar post: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            flash(f'Erro ao adicionar post: {str(e)}', 'error')
     
     data_hoje = datetime.now().strftime('%d/%m/%Y')
     return render_template('admin/post_form.html', post=None, data_hoje=data_hoje)
@@ -561,6 +597,9 @@ def editar_post(post_id):
     
     if request.method == 'POST':
         try:
+            print(f"DEBUG - Editando post ID {post_id}")
+            
+            # Processar imagem
             if 'imagem' in request.files:
                 file = request.files['imagem']
                 if file and file.filename != '':
@@ -570,6 +609,7 @@ def editar_post(post_id):
                             delete_uploaded_file(post.imagem)
                         post.imagem = uploaded_filename
             
+            # Processar data
             data_publicacao_str = request.form.get('data_publicacao', '')
             try:
                 data_publicacao = datetime.strptime(data_publicacao_str, '%d/%m/%Y')
@@ -577,12 +617,18 @@ def editar_post(post_id):
                 data_publicacao = post.data_publicacao
                 flash('Data inválida. Mantendo data original.', 'warning')
             
-            conteudo = request.form.get('conteudo', '').strip()
-            resumo = conteudo[:150] + '...' if len(conteudo) > 150 else conteudo
+            # Obter conteúdo bruto
+            conteudo_bruto = request.form.get('conteudo', '').strip()
             
+            # Criar resumo
+            conteudo_limpo = re.sub(r'<[^>]+>', '', conteudo_bruto)
+            conteudo_limpo = re.sub(r'\*\*.*?\*\*', '', conteudo_limpo)
+            resumo = conteudo_limpo[:150] + '...' if len(conteudo_limpo) > 150 else conteudo_limpo
+            
+            # Atualizar post
             post.titulo = bleach.clean(request.form.get('titulo', '').strip())
-            post.conteudo = conteudo
-            post.resumo = resumo
+            post.conteudo = conteudo_bruto  # Salvar conteúdo bruto
+            post.resumo = bleach.clean(resumo)
             post.categoria = bleach.clean(request.form.get('categoria', ''))
             post.link_materia = request.form.get('link_materia', '').strip()
             post.data_publicacao = data_publicacao
@@ -591,11 +637,13 @@ def editar_post(post_id):
             db.session.commit()
             flash('Post atualizado com sucesso!', 'success')
             return redirect(url_for('admin_blog'))
+            
         except Exception as e:
             db.session.rollback()
             print(f"Erro ao atualizar post: {e}")
-            flash('Erro ao atualizar post.', 'error')
+            flash(f'Erro ao atualizar post: {str(e)}', 'error')
     
+    # Formatar data para exibição
     data_formatada = post.data_publicacao.strftime('%d/%m/%Y')
     return render_template('admin/post_form.html', post=post, data_hoje=data_formatada)
 
@@ -761,7 +809,7 @@ def api_blog_posts():
                 'imagem': post.get_imagem_url(),
                 'link_materia': post.link_materia,
                 'data_publicacao': post.get_data_formatada(),
-                'conteudo': post.conteudo
+                'conteudo_html': post.get_conteudo_html()
             })
         return jsonify(posts_list)
     except Exception as e:
