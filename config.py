@@ -4,8 +4,8 @@ class Config:
     """Configurações base da aplicação"""
     
     # Configurações básicas do Flask
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'postgresql://postgres:102030@localhost/testenet1')
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Configurações de segurança
@@ -18,25 +18,38 @@ class Config:
     # Configurações de upload
     UPLOAD_FOLDER = os.path.join('static', 'uploads', 'blog')
     MAX_CONTENT_LENGTH = 8 * 1024 * 1024  # 8MB
+    
+    @classmethod
+    def validate(cls):
+        """Valida configurações críticas"""
+        if not cls.SECRET_KEY:
+            raise ValueError("SECRET_KEY não configurada")
+        if not cls.SQLALCHEMY_DATABASE_URI:
+            raise ValueError("DATABASE_URL não configurada")
 
 class ProductionConfig(Config):
     """Configurações para ambiente de produção"""
     DEBUG = False
     TESTING = False
     
-    # Segurança reforçada em produção
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY deve ser definida em produção")
-    
-    # Em produção, use sempre HTTPS
-    PREFERRED_URL_SCHEME = 'https'
+    def __init__(self):
+        self.validate()
+        # Em produção, use sempre HTTPS
+        self.PREFERRED_URL_SCHEME = 'https'
 
 class DevelopmentConfig(Config):
     """Configurações para ambiente de desenvolvimento"""
     DEBUG = True
     TESTING = False
     TEMPLATES_AUTO_RELOAD = True
+    
+    def __init__(self):
+        # Em desenvolvimento, gerar SECRET_KEY se não existir
+        if not self.SECRET_KEY:
+            import secrets
+            self.SECRET_KEY = secrets.token_hex(32)
+        if not self.SQLALCHEMY_DATABASE_URI:
+            self.SQLALCHEMY_DATABASE_URI = 'sqlite:///netfyber.db'
 
 class TestingConfig(Config):
     """Configurações para ambiente de testes"""
@@ -56,4 +69,5 @@ config = {
 def get_config():
     """Retorna a configuração baseada na variável de ambiente FLASK_ENV"""
     env = os.environ.get('FLASK_ENV', 'development')
-    return config.get(env, config['default'])
+    config_class = config.get(env, config['default'])
+    return config_class()
